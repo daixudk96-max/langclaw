@@ -26,6 +26,7 @@ uv.lock
 ~/.langclaw/
 state.db
 *.db
+workspace/**
 
 # IDE
 .idea/
