@@ -147,7 +147,10 @@ def _format_tool_progress(tool: str, args: dict) -> str:
     else:
         suffix = ""
 
-    return f"<i>{label}{suffix}</i>"
+    if suffix:
+        return f"Ran <b>{label}</b>{suffix}"
+    # Return raw args for not built-in tools
+    return f"Ran <b>{label}</b><code>{args}</code>"
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +260,7 @@ class TelegramChannel(BaseChannel):
         await app.start()
 
         bot_info = await app.bot.get_me()
-        logger.info("Telegram bot @%s connected.", bot_info.username)
+        logger.info(f"Telegram bot @{bot_info.username} connected.")
 
         try:
             from telegram import BotCommand
@@ -270,7 +273,7 @@ class TelegramChannel(BaseChannel):
                 ]
             )
         except Exception as e:
-            logger.warning("Failed to register bot commands: %s", e)
+            logger.warning(f"Failed to register bot commands: {e}")
 
         await app.updater.start_polling(
             allowed_updates=["message"],
@@ -361,7 +364,7 @@ class TelegramChannel(BaseChannel):
             await bot.send_message(chat_id=chat_id, text=html, parse_mode="HTML")
         except BadRequest as exc:
             if "can't parse" in str(exc).lower() or "parse" in str(exc).lower():
-                logger.warning("HTML parse failed (%s), retrying as plain text.", exc)
+                logger.warning(f"HTML parse failed ({exc}), retrying as plain text.")
                 await bot.send_message(chat_id=chat_id, text=text)
             else:
                 raise
@@ -375,7 +378,7 @@ class TelegramChannel(BaseChannel):
                 chat_id=chat_id, text=html, parse_mode="HTML"
             )
         except Exception as exc:
-            logger.debug("Tool-progress send failed for %s: %s", chat_id, exc)
+            logger.debug(f"Tool-progress send failed for {chat_id}: {exc}")
 
     # ------------------------------------------------------------------
     # Typing indicator
@@ -405,7 +408,7 @@ class TelegramChannel(BaseChannel):
         except asyncio.CancelledError:
             pass
         except Exception as exc:
-            logger.debug("Typing indicator stopped for %s: %s", chat_id, exc)
+            logger.debug(f"Typing indicator stopped for {chat_id}: {exc}")
 
     # ------------------------------------------------------------------
     # PTB error handler
@@ -414,7 +417,7 @@ class TelegramChannel(BaseChannel):
     async def _on_error(self, update: object, context: object) -> None:
         """Log PTB polling / handler errors."""
         err = getattr(context, "error", context)
-        logger.error("Telegram error: %s", err)
+        logger.error(f"Telegram error: {err}")
 
     # ------------------------------------------------------------------
     # PTB message handlers

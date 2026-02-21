@@ -79,7 +79,7 @@ class CronManager:
             event_broker=LocalEventBroker(),
         )
         await self._scheduler.__aenter__()
-        logger.info("CronManager started (timezone=%s).", self._timezone)
+        logger.info(f"CronManager started (timezone={self._timezone}).")
 
     async def stop(self) -> None:
         if self._scheduler is not None:
@@ -152,7 +152,9 @@ class CronManager:
                 "job_name": name,
             },
         )
-        logger.info("Cron job '%s' scheduled (id=%s, schedule=%s).", name, job_id, job.schedule)
+        logger.info(
+            f"Cron job '{name}' scheduled (id={job_id}, schedule={job.schedule})."
+        )
         return job_id
 
     async def remove_job(self, job_id: str) -> bool:
@@ -182,7 +184,7 @@ class CronManager:
         context_id: str,
         job_name: str,
     ) -> None:
-        logger.debug("Cron job '%s' fired → publishing to bus.", job_name)
+        logger.debug(f"Cron job '{job_name}' fired → publishing to bus.")
         await self._bus.publish(
             InboundMessage(
                 channel=channel,

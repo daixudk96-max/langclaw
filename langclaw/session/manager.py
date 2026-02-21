@@ -12,6 +12,8 @@ import asyncio
 import uuid
 from typing import Any
 
+from loguru import logger
+
 
 class SessionManager:
     """
@@ -42,6 +44,7 @@ class SessionManager:
         async with self._lock:
             if key not in self._store:
                 self._store[key] = str(uuid.uuid4())
+                logger.info(f"Created new thread {self._store[key]} for {key}")
             return self._store[key]
 
     async def delete_thread(
@@ -86,6 +89,9 @@ class SessionManager:
         Convenience: get or create thread then return a ready RunnableConfig.
         """
         thread_id = await self.get_or_create_thread(channel, user_id, context_id)
+        logger.info(
+            f"Current thread_id: {thread_id} for {channel}:{user_id}:{context_id}"
+        )
         return self.make_runnable_config(thread_id, channel_context)
 
     def all_threads(self) -> dict[str, str]:

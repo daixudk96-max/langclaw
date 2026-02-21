@@ -109,9 +109,7 @@ class HeartbeatManager:
     def remove_condition(self, name: str) -> bool:
         """Remove all conditions with the given name. Returns True if any removed."""
         before = len(self._conditions)
-        self._conditions = [
-            (c, t) for c, t in self._conditions if c.name != name
-        ]
+        self._conditions = [(c, t) for c, t in self._conditions if c.name != name]
         return len(self._conditions) < before
 
     async def start(self) -> None:
@@ -152,13 +150,13 @@ class HeartbeatManager:
                 result = await condition.check()
             except Exception:
                 logger.exception(
-                    "HeartbeatCondition '%s' raised an exception.", condition.name
+                    f"HeartbeatCondition '{condition.name}' raised an exception."
                 )
                 continue
 
             if result:
                 logger.debug(
-                    "HeartbeatCondition '%s' fired: %s", condition.name, result[:80]
+                    f"HeartbeatCondition '{condition.name}' fired: {result[:80]}"
                 )
                 await self._bus.publish(
                     InboundMessage(

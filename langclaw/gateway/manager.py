@@ -11,18 +11,17 @@ Architecture:
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import Any
 
 from langchain_core.messages import HumanMessage
+from langgraph.graph.state import CompiledStateGraph
+from loguru import logger
 
 from langclaw.bus.base import BaseMessageBus, InboundMessage, OutboundMessage
 from langclaw.checkpointer.base import BaseCheckpointerBackend
 from langclaw.config.schema import LangclawConfig
 from langclaw.gateway.base import BaseChannel
 from langclaw.session.manager import SessionManager
-
-logger = logging.getLogger(__name__)
 
 
 class GatewayManager:
@@ -47,7 +46,7 @@ class GatewayManager:
         config: LangclawConfig,
         bus: BaseMessageBus,
         checkpointer_backend: BaseCheckpointerBackend,
-        agent: Any,
+        agent: CompiledStateGraph,
         channels: list[BaseChannel],
     ) -> None:
         self._config = config
@@ -78,18 +77,18 @@ class GatewayManager:
                 tg.create_task(self._bus_worker(), name="bus_worker")
         except* Exception as eg:
             for exc in eg.exceptions:
-                logger.error("Gateway task failed: %s", exc, exc_info=exc)
+                logger.error(f"Gateway task failed: {exc}")
             raise
 
     async def _run_channel(self, channel: BaseChannel) -> None:
         """Start a single channel, stopping it cleanly on cancellation."""
-        logger.info("Starting channel: %s", channel.name)
+        logger.info(f"Starting channel: {channel.name}")
         try:
             await channel.start(self._bus)
         except asyncio.CancelledError:
             pass
         finally:
-            logger.info("Stopping channel: %s", channel.name)
+            logger.info(f"Stopping channel: {channel.name}")
             await channel.stop()
 
     async def _bus_worker(self) -> None:
@@ -115,7 +114,7 @@ class GatewayManager:
         channel = self._channel_map.get(msg.channel)
         if channel is None:
             logger.warning(
-                "No channel handler for '%s' — dropping message.", msg.channel
+                f"No channel handler for '{msg.channel}' — dropping message."
             )
             return
 
@@ -146,6 +145,7 @@ class GatewayManager:
                 input_state,
                 config=runnable_config,
                 stream_mode="values",
+                print_mode="values",
             ):
                 if "messages" not in chunk:
                     continue
@@ -184,7 +184,8 @@ class GatewayManager:
                 # for the last AIMessage that actually has text content.
                 last_ai = next(
                     (
-                        m for m in reversed(messages)
+                        m
+                        for m in reversed(messages)
                         if isinstance(m, AIMessage) and m.content
                     ),
                     None,
@@ -200,7 +201,7 @@ class GatewayManager:
                         for b in raw
                     )
                 if raw and raw != accumulated:
-                    delta = raw[len(accumulated):]
+                    delta = raw[len(accumulated) :]
                     accumulated = raw
                     if delta:
                         await channel.send(
@@ -226,9 +227,7 @@ class GatewayManager:
                 )
 
         except Exception:
-            logger.exception(
-                "Error handling message from %s/%s", msg.channel, msg.user_id
-            )
+            logger.exception(f"Error handling message from {msg.channel}/{msg.user_id}")
             try:
                 await channel.send(
                     OutboundMessage(
