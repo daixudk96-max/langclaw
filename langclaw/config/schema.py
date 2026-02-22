@@ -74,6 +74,13 @@ def _parse_str_list(v: object) -> list[str]:
 StringList = Annotated[list[str], BeforeValidator(_parse_str_list)]
 
 # ---------------------------------------------------------------------------
+# Langclaw home
+# ---------------------------------------------------------------------------
+
+_LANGCLAW_HOME = Path.home() / ".langclaw"
+_CONFIG_PATH = _LANGCLAW_HOME / "config.json"
+
+# ---------------------------------------------------------------------------
 # Sub-schemas
 # ---------------------------------------------------------------------------
 
@@ -130,10 +137,39 @@ class ChannelsConfig(BaseModel):
 
 class AgentConfig(BaseModel):
     model: str = "anthropic:claude-sonnet-4-5-20250929"
-    system_prompt: str = "You are a helpful AI assistant."
     rate_limit_rpm: int = 60
     banned_keywords: StringList = Field(default_factory=list)
     extra_skills: StringList = Field(default_factory=list)
+
+    root_dir: str = Field(default_factory=lambda: str(_LANGCLAW_HOME))
+
+    @property
+    def workspace_dir(self) -> Path:
+        return Path(self.root_dir).expanduser() / "workspace"
+
+    @property
+    def skills_source(self) -> str:
+        return "/skills"
+
+    @property
+    def agents_md_source(self) -> str:
+        return "/AGENTS.md"
+
+    @property
+    def memories_source(self) -> str:
+        return "/memories"
+
+    @property
+    def skills_dir(self) -> Path:
+        return self.workspace_dir / self.skills_source.lstrip("/")
+
+    @property
+    def agents_md_file(self) -> Path:
+        return self.workspace_dir / self.agents_md_source.lstrip("/")
+
+    @property
+    def memories_dir(self) -> Path:
+        return self.workspace_dir / self.memories_source.lstrip("/")
 
 
 class SqliteCheckpointerConfig(BaseModel):
@@ -185,13 +221,24 @@ class HeartbeatConfig(BaseModel):
     interval_seconds: int = 60
 
 
+class ToolsConfig(BaseModel):
+    """Configuration for built-in agent tools (web search, fetch, etc.)."""
+
+    search_backend: Literal["brave", "tavily", "duckduckgo"] = "brave"
+    """Search backend to use. One of ``"brave"``, ``"tavily"``, or ``"duckduckgo"``."""
+
+    brave_api_key: str = ""
+    """Brave Search API key. Required when search_backend = "brave".
+    Obtain one at https://api.search.brave.com/app/dashboard"""
+
+    tavily_api_key: str = ""
+    """Tavily Search API key. Required when search_backend = "tavily".
+    Obtain one at https://app.tavily.com"""
+
+
 # ---------------------------------------------------------------------------
 # Root config
 # ---------------------------------------------------------------------------
-
-
-_LANGCLAW_HOME = Path.home() / ".langclaw"
-_CONFIG_PATH = _LANGCLAW_HOME / "config.json"
 
 
 def _load_json_defaults() -> dict[str, Any]:
@@ -226,28 +273,11 @@ class LangclawConfig(BaseSettings):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     agents: AgentConfig = Field(default_factory=AgentConfig)
+    tools: ToolsConfig = Field(default_factory=ToolsConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     bus: BusConfig = Field(default_factory=BusConfig)
     cron: CronConfig = Field(default_factory=CronConfig)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
-
-    root_dir: str = Field(default_factory=lambda: str(_LANGCLAW_HOME))
-
-    @property
-    def workspace_dir(self) -> Path:
-        return Path(self.root_dir).expanduser() / "workspace"
-
-    @property
-    def skills_dir(self) -> Path:
-        return self.workspace_dir / "skills"
-
-    @property
-    def agents_md_file(self) -> Path:
-        return self.workspace_dir / "AGENTS.md"
-
-    @property
-    def memories_dir(self) -> Path:
-        return self.workspace_dir / "memories"
 
     @model_validator(mode="before")
     @classmethod

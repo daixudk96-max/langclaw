@@ -42,6 +42,7 @@ def test_config_env_override(monkeypatch):
 
     # Re-instantiate directly to pick up monkeypatched env
     from langclaw.config.schema import LangclawConfig
+
     cfg = LangclawConfig()
     assert cfg.agents.model == "openai:gpt-4.1"
     assert cfg.bus.backend == "rabbitmq"
@@ -101,6 +102,7 @@ def test_rate_limit_middleware_instantiation():
 
 def test_pii_middleware_importable():
     from langclaw.middleware import PIIMiddleware
+
     assert PIIMiddleware is not None
 
 
@@ -110,16 +112,24 @@ def test_pii_middleware_importable():
 
 
 def test_checkpointer_factory_sqlite():
-    from langclaw.checkpointer import SqliteCheckpointerBackend, make_checkpointer_backend
+    from langclaw.checkpointer import (
+        SqliteCheckpointerBackend,
+        make_checkpointer_backend,
+    )
 
     backend = make_checkpointer_backend("sqlite", db_path="/tmp/test_langclaw.db")
     assert isinstance(backend, SqliteCheckpointerBackend)
 
 
 def test_checkpointer_factory_postgres():
-    from langclaw.checkpointer import PostgresCheckpointerBackend, make_checkpointer_backend
+    from langclaw.checkpointer import (
+        PostgresCheckpointerBackend,
+        make_checkpointer_backend,
+    )
 
-    backend = make_checkpointer_backend("postgres", dsn="postgresql://user:pass@localhost/db")
+    backend = make_checkpointer_backend(
+        "postgres", dsn="postgresql://user:pass@localhost/db"
+    )
     assert isinstance(backend, PostgresCheckpointerBackend)
 
 
@@ -238,7 +248,9 @@ async def test_asyncio_bus_publish_subscribe():
 
     bus = AsyncioMessageBus()
     async with bus:
-        msg = InboundMessage(channel="test", user_id="u1", context_id="c1", content="hello")
+        msg = InboundMessage(
+            channel="test", user_id="u1", context_id="c1", content="hello"
+        )
         await bus.publish(msg)
 
         received = None
@@ -325,8 +337,9 @@ def test_config_workspace_paths():
     from langclaw.config.schema import LangclawConfig
 
     cfg = LangclawConfig()
-    assert cfg.agents_md_file == cfg.workspace_dir / "AGENTS.md"
-    assert cfg.skills_dir == cfg.workspace_dir / "skills"
-    assert cfg.memories_dir == cfg.workspace_dir / "memories"
+    agents = cfg.agents
+    assert agents.agents_md_file == agents.workspace_dir / "AGENTS.md"
+    assert agents.skills_dir == agents.workspace_dir / "skills"
+    assert agents.memories_dir == agents.workspace_dir / "memories"
     # Tilde must be expanded — path should not start with '~'
-    assert not str(cfg.workspace_dir).startswith("~")
+    assert not str(agents.workspace_dir).startswith("~")
