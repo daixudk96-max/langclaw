@@ -16,6 +16,7 @@ from typing import Annotated
 
 import typer
 
+from langclaw.cli.utils import install_deps
 from langclaw.config import config
 
 app = typer.Typer(
@@ -57,11 +58,12 @@ def init(
 
     # Derive workspace from the freshly-saved config so root_dir overrides apply
     from langclaw.config.schema import load_config
-    workspace = load_config().workspace_dir
+
+    workspace = load_config().agents.workspace_dir
     workspace.mkdir(parents=True, exist_ok=True)
 
     # Copy AGENTS.md (skip if already present and not --force)
-    dest_agents_md = workspace / "AGENTS.md"
+    dest_agents_md = config.agents.agents_md_file
     if not dest_agents_md.exists() or force:
         shutil.copy2(_DEFAULT_AGENTS_MD, dest_agents_md)
         typer.echo(f"AGENTS.md  → {dest_agents_md}")
@@ -69,7 +71,7 @@ def init(
         typer.echo(f"AGENTS.md  already exists at {dest_agents_md} (skipped)")
 
     # Copy default skills (merge; existing skill dirs not overwritten unless --force)
-    dest_skills = workspace / "skills"
+    dest_skills = config.agents.skills_dir
     for skill_dir in _DEFAULT_SKILLS_DIR.iterdir():
         if not skill_dir.is_dir():
             continue
@@ -81,6 +83,17 @@ def init(
             typer.echo(f"skill/{skill_dir.name}  → {dest}")
 
     typer.echo("\nEdit AGENTS.md and skills to customise your agent.")
+
+    # Create memories directory
+    memories_dir = config.agents.memories_dir
+    if not memories_dir.exists() or force:
+        memories_dir.mkdir(parents=True, exist_ok=True)
+        typer.echo(f"memories directory created at {memories_dir}")
+    else:
+        typer.echo(f"memories directory already exists at {memories_dir} (skipped)")
+
+    # Install all dependencies
+    install_deps()
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +164,8 @@ async def _stream_agent(agent: object, message: str, config: dict) -> str:
     async for chunk in agent.astream(
         {"messages": [HumanMessage(content=message)]},
         config=config,
-        stream_mode="values",
+        stream_mode="updates",
+        print_mode="updates",
     ):
         if "messages" not in chunk:
             continue
