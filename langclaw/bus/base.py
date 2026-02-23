@@ -29,10 +29,17 @@ class InboundMessage:
     """Platform-specific user identifier."""
 
     context_id: str
-    """Group/DM/channel context within the platform (use ``"default"`` for DMs)."""
+    """Session key used for LangGraph thread mapping. Never used for delivery."""
 
     content: str
     """Text content of the message."""
+
+    chat_id: str = ""
+    """
+    Channel-specific delivery address (e.g. Telegram chat_id, Discord
+    channel_id). Should be set by the originating source; if empty,
+    ``BaseChannel.send()`` falls back to ``user_id``.
+    """
 
     attachments: list[dict] = field(default_factory=list)
     """Optional list of attachment descriptors (type, url, data)."""
@@ -53,7 +60,14 @@ class OutboundMessage:
     channel: str
     user_id: str
     context_id: str
+    """Session key mirrored from the inbound message (not used for delivery)."""
     content: str
+    chat_id: str = ""
+    """
+    Channel-specific delivery address mirrored from the originating
+    ``InboundMessage``. Guaranteed non-empty by ``BaseChannel.send()``
+    which falls back to ``user_id``.
+    """
     type: str = "ai"
     """Message type: ``"ai"`` | ``"tool_progress"`` | ``"tool_result"``."""
     streaming: bool = False

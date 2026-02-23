@@ -169,6 +169,7 @@ class GatewayManager:
                                 channel=msg.channel,
                                 user_id=msg.user_id,
                                 context_id=msg.context_id,
+                                chat_id=msg.chat_id,
                                 content="",
                                 type="tool_progress",
                                 metadata={
@@ -189,6 +190,7 @@ class GatewayManager:
                             channel=msg.channel,
                             user_id=msg.user_id,
                             context_id=msg.context_id,
+                                chat_id=msg.chat_id,
                             content=content,
                             type="tool_result",
                             metadata={"tool_call_id": m.tool_call_id or ""},
@@ -209,6 +211,7 @@ class GatewayManager:
                                 channel=msg.channel,
                                 user_id=msg.user_id,
                                 context_id=msg.context_id,
+                                chat_id=msg.chat_id,
                                 content=raw,
                                 type="ai",
                             )
@@ -232,6 +235,7 @@ class GatewayManager:
             "channel": msg.channel,
             "user_id": msg.user_id,
             "context_id": msg.context_id,
+            "chat_id": msg.chat_id,
             "metadata": msg.metadata,
         }
         runnable_config = await self._sessions.get_config(
@@ -260,6 +264,7 @@ class GatewayManager:
                         channel=msg.channel,
                         user_id=msg.user_id,
                         context_id=msg.context_id,
+                        chat_id=msg.chat_id,
                         content="Sorry, something went wrong. Please try again.",
                         type="ai",
                     )

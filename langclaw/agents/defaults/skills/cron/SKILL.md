@@ -31,6 +31,9 @@ cron(action="add", message="<text or task>", cron_expr="<5-field cron>")
 ```
 
 Exactly one of `every_seconds` or `cron_expr` is required.
+`message` should contain only the task/reminder content.
+Do not include schedule/timezone or recipient/user details in `message`;
+those are defined by cron parameters + channel context.
 
 ### List active jobs
 
@@ -73,6 +76,14 @@ Daily weather report task:
 cron(action="add",
      message="Check today's weather forecast and send a brief summary.",
      cron_expr="0 8 * * *")
+```
+
+Daily quote task (task-only `message`):
+
+```
+cron(action="add",
+     message="Pick one movie/anime quote matching today's mood from local weather + weekday/weekend. Output: quote, 1-2 sentence why-it-fits, source URL. Add SPOILER WARNING only for major twists/final-act reveals. Avoid explicit NSFW.",
+     cron_expr="30 13 * * *")
 ```
 
 List all jobs:

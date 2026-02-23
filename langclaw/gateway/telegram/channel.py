@@ -20,6 +20,8 @@ import asyncio
 import logging
 import re
 
+from telegram import Bot
+from telegram.ext import Application
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -29,6 +31,7 @@ from tenacity import (
 
 from langclaw.bus.base import BaseMessageBus, InboundMessage, OutboundMessage
 from langclaw.config.schema import TelegramChannelConfig
+from langclaw.cron.utils import is_cron_context_id
 from langclaw.gateway.base import BaseChannel
 from langclaw.session.manager import SessionManager
 
@@ -198,7 +201,7 @@ class TelegramChannel(BaseChannel):
 
     def __init__(self, config: TelegramChannelConfig) -> None:
         self._config = config
-        self._app: object = None  # telegram.ext.Application
+        self._app: Application | None = None
         self._session_manager = SessionManager()
         self._bus: BaseMessageBus | None = None
         self._running = False
@@ -306,6 +309,9 @@ class TelegramChannel(BaseChannel):
 
     async def send_tool_progress(self, msg: OutboundMessage) -> None:
         """Stash the tool call info; actual rendering happens on tool_result."""
+        # Don't show tool progress for cron jobs
+        if is_cron_context_id(msg.context_id):
+            return
         tc_id = msg.metadata.get("tool_call_id", "")
         if tc_id:
             self._tool_call_buffer[tc_id] = {
@@ -322,10 +328,10 @@ class TelegramChannel(BaseChannel):
           <blockquote expandable>raw tool output</blockquote>
 
         The blockquote content is truncated to keep the total message within
-        Telegram's 4 096-char limit. The full result is always available in the
+        Telegram's 4096-char limit. The full result is always available in the
         agent's LangGraph state; this display is informational only.
         """
-        if self._app is None:
+        if self._app is None or is_cron_context_id(msg.context_id):
             return
         tc_id = msg.metadata.get("tool_call_id", "")
         call_info = self._tool_call_buffer.pop(tc_id, {})
@@ -347,17 +353,17 @@ class TelegramChannel(BaseChannel):
         if len(escaped) > max_content:
             escaped = escaped[:max_content] + _TRUNCATION_SUFFIX
         html = f"{header}\n<blockquote expandable>{escaped}</blockquote>"
-        await self._send_progress(msg.context_id, html)
+        await self._send_progress(msg.chat_id, html)
 
     async def send_ai_message(self, msg: OutboundMessage) -> None:
         """Stop the typing indicator and deliver the final AI response."""
         if self._app is None:
             return
-        self._stop_typing(msg.context_id)
+        self._stop_typing(msg.chat_id)
         if not msg.content:
             return
         for chunk in _split_message(msg.content):
-            await self._send_chunk(msg.context_id, chunk)
+            await self._send_chunk(msg.chat_id, chunk)
 
     @retry(
         retry=retry_if_exception_type(Exception),
@@ -372,7 +378,10 @@ class TelegramChannel(BaseChannel):
         except ImportError:
             BadRequest = Exception  # type: ignore[misc,assignment]
 
-        bot = self._app.bot  # type: ignore[attr-defined]
+        if not self._app:
+            return
+
+        bot: Bot = self._app.bot  # type: ignore[attr-defined]
 
         html = _markdown_to_telegram_html(text)
         try:
@@ -469,6 +478,7 @@ class TelegramChannel(BaseChannel):
                 channel=self.name,
                 user_id=user_id,
                 context_id=chat_id,
+                chat_id=chat_id,
                 content=text,
                 metadata={
                     "source": "channel",
@@ -491,11 +501,10 @@ class TelegramChannel(BaseChannel):
         if not user:
             return
 
-        chat_id = str(update.message.chat_id)
         deleted = await self._session_manager.delete_thread(
             channel=self.name,
             user_id=str(user.id),
-            context_id=chat_id,
+            context_id=str(update.message.chat_id),
         )
         reply = (
             "Conversation reset. Starting fresh!" if deleted else "Nothing to reset."

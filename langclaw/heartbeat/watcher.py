@@ -68,6 +68,8 @@ class HeartbeatTarget:
     channel: str
     user_id: str
     context_id: str = "default"
+    chat_id: str = ""
+    """Delivery address on the channel. Defaults to ``user_id`` when empty."""
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +165,7 @@ class HeartbeatManager:
                         channel=target.channel,
                         user_id=target.user_id,
                         context_id=target.context_id,
+                        chat_id=target.chat_id,
                         content=result,
                         metadata={
                             "source": "heartbeat",

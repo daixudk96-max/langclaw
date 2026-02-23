@@ -1,6 +1,11 @@
 """
 SessionManager — maps (channel, user_id, context_id) → LangGraph thread_id.
 
+``context_id`` is a session discriminator, **not** a delivery address.
+Different values create separate LangGraph threads for the same user
+(e.g. ``"cron:task:<uuid>"`` isolates a scheduled task from the main
+conversation).
+
 Conversation state lives entirely inside the LangGraph checkpointer.
 This manager only maintains the ID mapping so the same thread is resumed
 across messages from the same user in the same context.

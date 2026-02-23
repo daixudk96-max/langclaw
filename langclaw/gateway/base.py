@@ -52,8 +52,13 @@ class BaseChannel(ABC):
         """
         Dispatch *msg* to the appropriate per-type hook.
 
+        Guarantees ``msg.chat_id`` is non-empty before reaching any hook
+        by falling back to ``msg.user_id`` (correct for private-chat platforms).
+
         Do NOT override this method in subclasses — override the hooks instead.
         """
+        if not msg.chat_id:
+            msg.chat_id = msg.user_id
         if msg.type == "tool_progress":
             await self.send_tool_progress(msg)
         elif msg.type == "tool_result":

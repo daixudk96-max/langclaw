@@ -34,6 +34,17 @@ from langclaw.bus.base import BaseMessageBus, InboundMessage
 logger = logging.getLogger(__name__)
 
 
+def _wrap_cron_runtime_prompt(task_message: str) -> str:
+    """Return a compact execution wrapper for cron-fired prompts."""
+    return (
+        "Scheduled run. Execute now.\n"
+        "Rules: no follow-up questions unless blocked by missing access/credentials; "
+        "use reasonable defaults; use tools if needed; return only the final user-facing "
+        "result in the requested format.\n\n"
+        f"Task:\n{task_message}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Module-level manager registry
 # ---------------------------------------------------------------------------
@@ -54,6 +65,7 @@ async def _fire_job(
     channel: str,
     user_id: str,
     context_id: str,
+    chat_id: str,
     job_name: str,
 ) -> None:
     """APScheduler job function — must stay at module level to be picklable.
@@ -74,7 +86,8 @@ async def _fire_job(
             channel=channel,
             user_id=user_id,
             context_id=context_id,
-            content=message,
+            content=_wrap_cron_runtime_prompt(message),
+            chat_id=chat_id,
             metadata={
                 "source": "cron",
                 "job_name": job_name,
@@ -96,6 +109,7 @@ class CronJob:
     channel: str
     user_id: str
     context_id: str
+    chat_id: str
     schedule: str
     """Either a cron expression (``"0 9 * * *"``) or ``"every:<seconds>"``."""
 
@@ -158,6 +172,7 @@ class CronManager:
             event_broker=self._event_broker or LocalEventBroker(),
         )
         await self._scheduler.__aenter__()
+        await self._scheduler.start_in_background()
         _MANAGERS[self._manager_id] = self
         logger.info(
             f"CronManager started "
@@ -178,6 +193,7 @@ class CronManager:
         channel: str,
         user_id: str,
         context_id: str = "default",
+        chat_id: str = "",
         cron_expr: str | None = None,
         every_seconds: int | None = None,
     ) -> str:
@@ -189,7 +205,8 @@ class CronManager:
             message:       Text content to send as an InboundMessage.
             channel:       Target channel name (e.g. ``"telegram"``).
             user_id:       Target user ID on the channel.
-            context_id:    Conversation context (default ``"default"``).
+            context_id:    Session key for thread mapping.
+            chat_id:       Delivery address on the channel (falls back to user_id).
             cron_expr:     Standard 5-field cron expression (``"0 9 * * *"``).
             every_seconds: Interval in seconds (alternative to cron_expr).
 
@@ -221,6 +238,7 @@ class CronManager:
             channel=channel,
             user_id=user_id,
             context_id=context_id,
+            chat_id=chat_id,
             schedule=cron_expr or f"every:{every_seconds}s",
         )
         # All kwargs are plain strings — safe to pickle for persistent stores.
@@ -236,6 +254,7 @@ class CronManager:
                 "channel": channel,
                 "user_id": user_id,
                 "context_id": context_id,
+                "chat_id": chat_id,
                 "job_name": name,
             },
         )
