@@ -191,7 +191,7 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
 
         # ── list ───────────────────────────────────────────────────────────
         if action == "list":
-            jobs = cron_manager.list_jobs(
+            jobs = await cron_manager.list_jobs(
                 channel=channel or None,
                 user_id=user_id or None,
             )

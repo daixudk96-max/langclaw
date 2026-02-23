@@ -28,8 +28,14 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from langclaw.bus.base import BaseMessageBus, InboundMessage
+
+if TYPE_CHECKING:
+    from apscheduler import AsyncScheduler
+    from apscheduler._structures import Schedule
+    from apscheduler.abc import DataStore, EventBroker
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +73,16 @@ async def _fire_job(
     context_id: str,
     chat_id: str,
     job_name: str,
+    schedule: str = "",
 ) -> None:
     """APScheduler job function — must stay at module level to be picklable.
 
     All parameters are plain strings so APScheduler can pickle them safely
     regardless of which data store backend is configured.
+
+    ``schedule`` is stored for introspection (``cron list``) and is not used
+    during execution. It defaults to ``""`` so old persisted jobs without the
+    field continue to fire without error.
     """
     manager = _MANAGERS.get(manager_id)
     if manager is None:
@@ -114,6 +125,33 @@ class CronJob:
     """Either a cron expression (``"0 9 * * *"``) or ``"every:<seconds>"``."""
 
 
+def _schedule_to_cronjob(schedule: Schedule) -> CronJob | None:
+    """Reconstruct a ``CronJob`` from an APScheduler ``Schedule``.
+
+    Returns ``None`` if the schedule's kwargs cannot be decoded (e.g. it was
+    created by a different system or its pickle is corrupt).
+    """
+    kwargs = schedule.kwargs
+    if not isinstance(kwargs, dict):
+        return None
+    try:
+        return CronJob(
+            id=schedule.id,
+            name=kwargs.get("job_name", ""),
+            message=kwargs.get("message", ""),
+            channel=kwargs.get("channel", ""),
+            user_id=kwargs.get("user_id", ""),
+            context_id=kwargs.get("context_id", "default"),
+            chat_id=kwargs.get("chat_id", ""),
+            schedule=kwargs.get("schedule", str(schedule.trigger)),
+        )
+    except Exception:
+        logger.debug(
+            "Could not reconstruct CronJob from schedule %s", schedule.id, exc_info=True
+        )
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Manager
 # ---------------------------------------------------------------------------
@@ -144,16 +182,15 @@ class CronManager:
         self,
         bus: BaseMessageBus,
         timezone: str = "UTC",
-        data_store: object | None = None,
-        event_broker: object | None = None,
+        data_store: DataStore | None = None,
+        event_broker: EventBroker | None = None,
     ) -> None:
         self._bus = bus
         self._timezone = timezone
         self._data_store = data_store
         self._event_broker = event_broker
         self._manager_id: str = str(uuid.uuid4())
-        self._scheduler: object = None  # APScheduler AsyncScheduler
-        self._jobs: dict[str, CronJob] = {}
+        self._scheduler: AsyncScheduler | None = None
 
     async def start(self) -> None:
         """Start the APScheduler AsyncScheduler and register in the registry."""
@@ -243,7 +280,8 @@ class CronManager:
         )
         # All kwargs are plain strings — safe to pickle for persistent stores.
         # The bus is looked up from _MANAGERS at fire time via manager_id.
-        # Register in _jobs *after* add_schedule succeeds to avoid orphans.
+        # ``schedule`` is stored so CLI / list_jobs can reconstruct CronJob
+        # without needing to introspect the trigger object.
         await self._scheduler.add_schedule(
             _fire_job,
             trigger,
@@ -256,9 +294,9 @@ class CronManager:
                 "context_id": context_id,
                 "chat_id": chat_id,
                 "job_name": name,
+                "schedule": job.schedule,
             },
         )
-        self._jobs[job_id] = job
         logger.info(
             f"Cron job '{name}' scheduled "
             f"(id={job_id}, schedule={job.schedule})."
@@ -277,10 +315,19 @@ class CronManager:
         When *channel* and *user_id* are provided, the job is only removed
         if it belongs to that owner. This prevents users from deleting
         jobs created by others.
+
+        Falls back to querying the data store for jobs that were added by the
+        CLI and are not present in the in-memory ownership cache.
         """
         if self._scheduler is None:
             return False
-        job = self._jobs.get(job_id)
+        try:
+            schedules = await self._scheduler.data_store.get_schedules({job_id})
+        except Exception:
+            return False
+        if not schedules:
+            return False
+        job = _schedule_to_cronjob(schedules[0])
         if job is None:
             return False
         if channel is not None and job.channel != channel:
@@ -289,26 +336,40 @@ class CronManager:
             return False
         try:
             await self._scheduler.remove_schedule(job_id)
-            self._jobs.pop(job_id, None)
             return True
         except Exception:
             return False
 
-    def list_jobs(
+    async def list_jobs(
         self,
         *,
         channel: str | None = None,
         user_id: str | None = None,
     ) -> list[CronJob]:
-        """Return registered cron jobs, optionally filtered by owner.
+        """Return all cron jobs, queried from the APScheduler data store.
+
+        Queries the data store directly so the result is always up-to-date,
+        including schedules added by the CLI while the gateway was running.
+        Falls back to the in-memory cache if the data store is unavailable.
 
         When *channel* and *user_id* are both provided, only jobs matching
         that owner are returned — preventing users from seeing jobs
         scheduled by others.
         """
-        jobs = self._jobs.values()
+        if self._scheduler is None:
+            return []
+        try:
+            schedules = await self._scheduler.data_store.get_schedules()
+        except Exception:
+            logger.warning("Failed to query cron data store for list_jobs.")
+            return []
+        all_jobs = [
+            job
+            for s in schedules
+            if (job := _schedule_to_cronjob(s)) is not None
+        ]
         if channel is not None:
-            jobs = [j for j in jobs if j.channel == channel]
+            all_jobs = [j for j in all_jobs if j.channel == channel]
         if user_id is not None:
-            jobs = [j for j in jobs if j.user_id == user_id]
-        return list(jobs)
+            all_jobs = [j for j in all_jobs if j.user_id == user_id]
+        return all_jobs

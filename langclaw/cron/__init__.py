@@ -15,9 +15,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from langclaw.cron.scheduler import CronJob, CronManager
+from langclaw.cron.scheduler import CronJob, CronManager, _schedule_to_cronjob
 
 if TYPE_CHECKING:
+    from apscheduler.abc import DataStore, EventBroker
+
     from langclaw.bus.base import BaseMessageBus
     from langclaw.config.schema import (
         CronConfig,
@@ -31,7 +33,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-def _make_data_store(cfg: CronDataStoreConfig) -> object:
+def _make_data_store(cfg: CronDataStoreConfig) -> DataStore:
     """Construct an APScheduler DataStore from config."""
     if cfg.backend == "memory":
         from apscheduler.datastores.memory import MemoryDataStore
@@ -82,7 +84,7 @@ def _make_data_store(cfg: CronDataStoreConfig) -> object:
     )
 
 
-def _make_event_broker(cfg: CronEventBrokerConfig) -> object:
+def _make_event_broker(cfg: CronEventBrokerConfig) -> EventBroker:
     """Construct an APScheduler EventBroker from config."""
     if cfg.backend == "local":
         from apscheduler.eventbrokers.local import LocalEventBroker
@@ -99,8 +101,7 @@ def _make_event_broker(cfg: CronEventBrokerConfig) -> object:
             from apscheduler.eventbrokers.asyncpg import AsyncpgEventBroker
         except ImportError as exc:
             raise ImportError(
-                "asyncpg event broker requires asyncpg. "
-                "Install with: uv add asyncpg"
+                "asyncpg event broker requires asyncpg. " "Install with: uv add asyncpg"
             ) from exc
 
         return AsyncpgEventBroker.from_dsn(cfg.asyncpg.dsn)
@@ -126,8 +127,7 @@ def _make_event_broker(cfg: CronEventBrokerConfig) -> object:
             from apscheduler.eventbrokers.redis import RedisEventBroker
         except ImportError as exc:
             raise ImportError(
-                "Redis event broker requires redis. "
-                "Install with: uv add redis"
+                "Redis event broker requires redis. " "Install with: uv add redis"
             ) from exc
 
         return RedisEventBroker(host=cfg.redis.host, port=cfg.redis.port)
@@ -136,6 +136,57 @@ def _make_event_broker(cfg: CronEventBrokerConfig) -> object:
         f"Unknown cron event_broker backend: {cfg.backend!r}. "
         "Choose 'local', 'asyncpg', 'psycopg', or 'redis'."
     )
+
+
+# ---------------------------------------------------------------------------
+# Public helpers
+# ---------------------------------------------------------------------------
+
+
+async def list_jobs_from_store(config: CronConfig) -> list[CronJob]:
+    """Read persisted cron jobs directly from the data store.
+
+    Opens a short-lived ``AsyncScheduler`` against the configured data store,
+    reads all schedules, and maps them to ``CronJob`` objects.  The scheduler
+    is torn down immediately after the read — no background task is started.
+
+    This is the implementation behind ``langclaw cron list``: the CLI does not
+    need a running gateway; it connects to the same SQLite/Postgres file the
+    gateway uses and reads it directly.
+
+    Args:
+        config: ``CronConfig`` section from ``LangclawConfig``.
+
+    Returns:
+        List of ``CronJob`` objects found in the store.
+
+    Raises:
+        ValueError: if the data store backend is ``"memory"`` (nothing to read).
+    """
+    if config.data_store.backend == "memory":
+        raise ValueError(
+            "Cannot list jobs with the memory data store: no persistence. "
+            "Set cron.data_store.backend to 'sqlite' or 'postgres'."
+        )
+
+    try:
+        from apscheduler import AsyncScheduler
+    except ImportError as exc:
+        raise ImportError(
+            "list_jobs_from_store requires apscheduler>=4. "
+            "Install with: uv add 'apscheduler>=4'"
+        ) from exc
+
+    data_store = _make_data_store(config.data_store)
+    event_broker = _make_event_broker(config.event_broker)
+
+    async with AsyncScheduler(
+        data_store=data_store,
+        event_broker=event_broker,
+    ) as scheduler:
+        schedules = await scheduler.data_store.get_schedules()
+
+    return [job for s in schedules if (job := _schedule_to_cronjob(s)) is not None]
 
 
 # ---------------------------------------------------------------------------
@@ -174,5 +225,6 @@ def make_cron_manager(
 __all__ = [
     "CronJob",
     "CronManager",
+    "list_jobs_from_store",
     "make_cron_manager",
 ]

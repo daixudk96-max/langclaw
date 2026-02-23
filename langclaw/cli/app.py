@@ -329,40 +329,89 @@ def cron_add(
         int | None, typer.Option("--every", help="Interval in seconds.")
     ] = None,
 ) -> None:
-    """Schedule a new cron job."""
+    """Schedule a new cron job (persisted to the configured data store)."""
     if cron is None and every is None:
         typer.echo("Provide --cron or --every.", err=True)
         raise typer.Exit(1)
 
-    async def _run() -> None:
-        from langclaw.bus import AsyncioMessageBus
-        from langclaw.cron import CronManager
+    asyncio.run(_cron_add_async(
+        name=name,
+        message=message,
+        channel=channel,
+        user_id=user_id,
+        context_id=context_id,
+        cron_expr=cron,
+        every_seconds=every,
+    ))
 
-        bus = AsyncioMessageBus()
-        await bus.start()
-        mgr = CronManager(bus=bus)
-        await mgr.start()
+
+async def _cron_add_async(
+    *,
+    name: str,
+    message: str,
+    channel: str,
+    user_id: str,
+    context_id: str,
+    cron_expr: str | None,
+    every_seconds: int | None,
+) -> None:
+    from langclaw.bus import AsyncioMessageBus
+    from langclaw.cron import make_cron_manager
+
+    bus = AsyncioMessageBus()
+    await bus.start()
+    mgr = make_cron_manager(bus=bus, config=config.cron)
+    await mgr.start()
+    try:
         job_id = await mgr.add_job(
             name=name,
             message=message,
             channel=channel,
             user_id=user_id,
             context_id=context_id,
-            cron_expr=cron,
-            every_seconds=every,
+            cron_expr=cron_expr,
+            every_seconds=every_seconds,
         )
         typer.echo(f"Job created: {job_id}")
+    finally:
         await mgr.stop()
         await bus.stop()
-
-    asyncio.run(_run())
 
 
 @cron_app.command("list")
 def cron_list() -> None:
-    """List all active cron jobs (in-process store — not persistent across restarts)."""
-    typer.echo("Note: job list is only available within a running gateway process.")
-    typer.echo("Use 'langclaw gateway' to manage jobs in the running process.")
+    """List all scheduled cron jobs from the configured data store."""
+    asyncio.run(_cron_list_async())
+
+
+async def _cron_list_async() -> None:
+    from langclaw.cron import list_jobs_from_store
+
+    if config.cron.data_store.backend == "memory":
+        typer.echo(
+            "Cannot list jobs: the 'memory' data store does not persist jobs. "
+            "Set cron.data_store.backend to 'sqlite' (default) or 'postgres'.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    try:
+        jobs = await list_jobs_from_store(config.cron)
+    except Exception as exc:
+        typer.echo(f"Error reading data store: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    if not jobs:
+        typer.echo("No cron jobs found.")
+        return
+
+    typer.echo(f"{'ID':<36}  {'Name':<24}  {'Schedule':<20}  Channel / User")
+    typer.echo("-" * 100)
+    for job in jobs:
+        typer.echo(
+            f"{job.id:<36}  {job.name[:24]:<24}  {job.schedule[:20]:<20}  "
+            f"{job.channel}/{job.user_id}"
+        )
 
 
 @cron_app.command("remove")
