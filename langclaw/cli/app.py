@@ -334,15 +334,17 @@ def cron_add(
         typer.echo("Provide --cron or --every.", err=True)
         raise typer.Exit(1)
 
-    asyncio.run(_cron_add_async(
-        name=name,
-        message=message,
-        channel=channel,
-        user_id=user_id,
-        context_id=context_id,
-        cron_expr=cron,
-        every_seconds=every,
-    ))
+    asyncio.run(
+        _cron_add_async(
+            name=name,
+            message=message,
+            channel=channel,
+            user_id=user_id,
+            context_id=context_id,
+            cron_expr=cron,
+            every_seconds=every,
+        )
+    )
 
 
 async def _cron_add_async(
@@ -409,7 +411,7 @@ async def _cron_list_async() -> None:
     typer.echo("-" * 100)
     for job in jobs:
         typer.echo(
-            f"{job.id:<36}  {job.name[:24]:<24}  {job.schedule[:20]:<20}  "
+            f"{job.id:<36}  {job.name[:24]:<24}  {job.schedule:<20}  "
             f"{job.channel}/{job.user_id}"
         )
 

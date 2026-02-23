@@ -125,6 +125,39 @@ class CronJob:
     """Either a cron expression (``"0 9 * * *"``) or ``"every:<seconds>"``."""
 
 
+def _trigger_to_str(trigger: object) -> str:
+    """Return a compact human-readable string for an APScheduler trigger.
+
+    For ``CronTrigger`` this produces a standard 5-field cron expression
+    (``minute hour day month day_of_week``).  For ``IntervalTrigger`` it
+    produces ``every:<seconds>s``.  Unknown trigger types fall back to their
+    repr.
+
+    ``_fields`` is used instead of the public attrs (``trigger.minute`` etc.)
+    because ``CronTrigger.__setstate__`` only restores ``_fields``; the public
+    attrs are stale after deserialisation from a persistent store.
+    """
+    try:
+        from apscheduler.triggers.cron import CronTrigger
+        from apscheduler.triggers.interval import IntervalTrigger
+    except ImportError:
+        return str(trigger)
+
+    if isinstance(trigger, CronTrigger):
+        # FIELDS_MAP order: year(0) month(1) day(2) week(3) dow(4) hour(5) minute(6) second(7)
+        # 5-field cron expression: minute hour day month day_of_week
+        fields = [str(f) for f in trigger._fields]
+        if len(fields) >= 7:
+            return f"{fields[6]} {fields[5]} {fields[2]} {fields[1]} {fields[4]}"
+        return str(trigger)
+
+    if isinstance(trigger, IntervalTrigger):
+        total = int(trigger._interval.total_seconds())
+        return f"every:{total}s"
+
+    return str(trigger)
+
+
 def _schedule_to_cronjob(schedule: Schedule) -> CronJob | None:
     """Reconstruct a ``CronJob`` from an APScheduler ``Schedule``.
 
@@ -143,7 +176,7 @@ def _schedule_to_cronjob(schedule: Schedule) -> CronJob | None:
             user_id=kwargs.get("user_id", ""),
             context_id=kwargs.get("context_id", "default"),
             chat_id=kwargs.get("chat_id", ""),
-            schedule=kwargs.get("schedule", str(schedule.trigger)),
+            schedule=kwargs.get("schedule") or _trigger_to_str(schedule.trigger),
         )
     except Exception:
         logger.debug(
