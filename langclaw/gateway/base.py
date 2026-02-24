@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from langclaw.bus.base import BaseMessageBus, OutboundMessage
+    from langclaw.gateway.commands import CommandRouter
 
 
 class BaseChannel(ABC):
@@ -35,6 +36,12 @@ class BaseChannel(ABC):
 
     name: str
     """Unique channel identifier (e.g. ``"telegram"``, ``"discord"``)."""
+
+    _command_router: CommandRouter | None = None
+
+    def set_command_router(self, router: CommandRouter) -> None:
+        """Inject the shared command router (called by GatewayManager)."""
+        self._command_router = router
 
     @abstractmethod
     async def start(self, bus: BaseMessageBus) -> None:

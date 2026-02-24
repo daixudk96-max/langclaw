@@ -22,6 +22,7 @@ from langclaw.checkpointer.base import BaseCheckpointerBackend
 from langclaw.config.schema import LangclawConfig
 from langclaw.cron.scheduler import CronManager
 from langclaw.gateway.base import BaseChannel
+from langclaw.gateway.commands import CommandRouter
 from langclaw.session.manager import SessionManager
 
 
@@ -63,6 +64,9 @@ class GatewayManager:
         self._channels = [ch for ch in channels if ch.is_enabled()]
         self._cron_manager = cron_manager
         self._sessions = SessionManager()
+        self._command_router = CommandRouter(
+            self._sessions, self._cron_manager,
+        )
         self._channel_map: dict[str, BaseChannel] = {
             ch.name: ch for ch in self._channels
         }
@@ -83,6 +87,9 @@ class GatewayManager:
         if self._cron_manager is not None:
             await self._cron_manager.start()
             logger.info("CronManager started.")
+
+        for channel in self._channels:
+            channel.set_command_router(self._command_router)
 
         try:
             async with asyncio.TaskGroup() as tg:

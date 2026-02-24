@@ -211,6 +211,8 @@ class CronManager:
                       ``RedisEventBroker`` for multi-process coordination.
     """
 
+    _DEFAULT_MANAGER_ID = "default"
+
     def __init__(
         self,
         bus: BaseMessageBus,
@@ -222,7 +224,7 @@ class CronManager:
         self._timezone = timezone
         self._data_store = data_store
         self._event_broker = event_broker
-        self._manager_id: str = str(uuid.uuid4())
+        self._manager_id: str = self._DEFAULT_MANAGER_ID
         self._scheduler: AsyncScheduler | None = None
 
     async def start(self) -> None:

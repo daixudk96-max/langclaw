@@ -33,7 +33,7 @@ from langclaw.bus.base import BaseMessageBus, InboundMessage, OutboundMessage
 from langclaw.config.schema import TelegramChannelConfig
 from langclaw.cron.utils import is_cron_context_id
 from langclaw.gateway.base import BaseChannel
-from langclaw.session.manager import SessionManager
+from langclaw.gateway.commands import CommandContext
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +202,6 @@ class TelegramChannel(BaseChannel):
     def __init__(self, config: TelegramChannelConfig) -> None:
         self._config = config
         self._app: Application | None = None
-        self._session_manager = SessionManager()
         self._bus: BaseMessageBus | None = None
         self._running = False
         self._typing_tasks: dict[str, asyncio.Task] = {}
@@ -253,9 +252,10 @@ class TelegramChannel(BaseChannel):
         self._app = app
 
         app.add_error_handler(self._on_error)
-        app.add_handler(CommandHandler("reset", self._handle_reset))
-        app.add_handler(CommandHandler("start", self._handle_start))
-        app.add_handler(CommandHandler("help", self._handle_help))
+        app.add_handler(CommandHandler("start", self._handle_command))
+        app.add_handler(CommandHandler("reset", self._handle_command))
+        app.add_handler(CommandHandler("help", self._handle_command))
+        app.add_handler(CommandHandler("cron", self._handle_command))
         app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
         )
@@ -275,6 +275,7 @@ class TelegramChannel(BaseChannel):
                     BotCommand("start", "Start the bot"),
                     BotCommand("help", "Show available commands"),
                     BotCommand("reset", "Start a fresh conversation"),
+                    BotCommand("cron", "List or remove cron jobs"),
                 ]
             )
         except Exception as e:
@@ -384,6 +385,10 @@ class TelegramChannel(BaseChannel):
         bot: Bot = self._app.bot  # type: ignore[attr-defined]
 
         html = _markdown_to_telegram_html(text)
+        logger.debug(
+            f"_send_chunk to {chat_id}: "
+            f"raw={len(text)} chars, html={len(html)} chars"
+        )
         try:
             await bot.send_message(chat_id=chat_id, text=html, parse_mode="HTML")
         except BadRequest as exc:
@@ -392,6 +397,13 @@ class TelegramChannel(BaseChannel):
                 await bot.send_message(chat_id=chat_id, text=text)
             else:
                 raise
+        except Exception as exc:
+            logger.error(
+                f"_send_chunk failed for {chat_id} "
+                f"(raw={len(text)}, html={len(html)}): "
+                f"{exc.__class__.__name__}: {exc}"
+            )
+            raise
 
     async def _send_progress(self, chat_id: str, html: str) -> None:
         """Send a small tool-progress status line (best-effort, no retry)."""
@@ -490,8 +502,8 @@ class TelegramChannel(BaseChannel):
             )
         )
 
-    async def _handle_reset(self, update: object, context: object) -> None:
-        """Clear the conversation thread for this user."""
+    async def _handle_command(self, update: object, context: object) -> None:
+        """Delegate any /command to the shared CommandRouter."""
         from telegram import Update as TGUpdate
 
         if not isinstance(update, TGUpdate) or not update.message:
@@ -501,41 +513,28 @@ class TelegramChannel(BaseChannel):
         if not user:
             return
 
-        deleted = await self._session_manager.delete_thread(
+        text = (update.message.text or "").strip()
+        parts = text.split()
+        # "/cron@botname list" → cmd="cron", args=["list"]
+        cmd = parts[0].lstrip("/").split("@")[0] if parts else ""
+        args = parts[1:] if len(parts) > 1 else []
+
+        if self._command_router is None:
+            await update.message.reply_text(
+                f"Command /{cmd} is not available."
+            )
+            return
+
+        ctx = CommandContext(
             channel=self.name,
             user_id=str(user.id),
             context_id=str(update.message.chat_id),
+            chat_id=str(update.message.chat_id),
+            args=args,
+            display_name=user.first_name or "",
         )
-        reply = (
-            "Conversation reset. Starting fresh!" if deleted else "Nothing to reset."
-        )
-        await update.message.reply_text(reply)
-
-    async def _handle_start(self, update: object, context: object) -> None:
-        from telegram import Update as TGUpdate
-
-        if not isinstance(update, TGUpdate) or not update.message:
-            return
-
-        user = update.message.from_user
-        name = user.first_name if user else "there"
-        await update.message.reply_text(
-            f"Hi {name}! I'm powered by langclaw.\n\n"
-            "Send me a message to get started.\n"
-            "Use /reset to start a fresh conversation."
-        )
-
-    async def _handle_help(self, update: object, context: object) -> None:
-        from telegram import Update as TGUpdate
-
-        if not isinstance(update, TGUpdate) or not update.message:
-            return
-
-        await update.message.reply_text(
-            "/start  — say hello\n"
-            "/reset  — clear conversation history\n"
-            "/help   — show this message"
-        )
+        response = await self._command_router.dispatch(cmd, ctx)
+        await update.message.reply_text(response)
 
     # ------------------------------------------------------------------
     # Helpers
