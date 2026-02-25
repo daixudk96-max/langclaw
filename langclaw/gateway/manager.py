@@ -21,10 +21,10 @@ from loguru import logger
 from langclaw.bus.base import BaseMessageBus, InboundMessage, OutboundMessage
 from langclaw.checkpointer.base import BaseCheckpointerBackend
 from langclaw.config.schema import LangclawConfig
+from langclaw.context import LangclawContext
 from langclaw.cron.scheduler import CronManager
 from langclaw.gateway.base import BaseChannel
 from langclaw.gateway.commands import CommandContext, CommandRouter
-from langclaw.middleware.permissions import LangclawContext
 from langclaw.session.manager import SessionManager
 
 
@@ -60,8 +60,9 @@ class GatewayManager:
         agent: CompiledStateGraph,
         channels: list[BaseChannel],
         cron_manager: CronManager | None = None,
-        extra_commands: list[tuple[str, Callable[[CommandContext], Awaitable[str]], str]]
-        | None = None,
+        extra_commands: (
+            list[tuple[str, Callable[[CommandContext], Awaitable[str]], str]] | None
+        ) = None,
     ) -> None:
         self._config = config
         self._bus = bus
@@ -237,12 +238,25 @@ class GatewayManager:
         Returns the role string, or ``None`` when permissions are
         disabled so the caller can skip passing context entirely.
 
-        Checks both numeric user ID and username (from metadata)
-        against the channel's ``user_roles`` mapping.
+        If the message carries a pre-resolved ``user_role`` in its
+        metadata (e.g. from a cron job that persisted the role at
+        schedule time), that value is used directly.  Otherwise falls
+        back to checking the channel's ``user_roles`` mapping by
+        user ID and username.
         """
         perms = self._config.permissions
         if not perms.enabled:
             return None
+
+        stored_role = (msg.metadata or {}).get("user_role")
+        if stored_role:
+            logger.debug(
+                "Using pre-resolved role '{}' from message metadata for user_id {}",
+                stored_role,
+                msg.user_id,
+            )
+            return stored_role
+
         ch_cfg = getattr(
             self._config.channels,
             msg.channel,
@@ -271,11 +285,32 @@ class GatewayManager:
           2. Resolve user RBAC role (if permissions enabled)
           3. Build RunnableConfig with channel context
           4. Stream agent updates back to the originating channel
+
+        Messages with ``metadata["_direct_delivery"]`` skip the agent
+        and are sent straight to the channel as an AI message.  This is
+        used by channel-routed subagents.
         """
         channel = self._channel_map.get(msg.channel)
         if channel is None:
             logger.warning(
                 f"No channel handler for '{msg.channel}' — dropping message.",
+            )
+            return
+
+        if (msg.metadata or {}).get("_direct_delivery"):
+            await channel.send(
+                OutboundMessage(
+                    channel=msg.channel,
+                    user_id=msg.user_id,
+                    context_id=msg.context_id,
+                    chat_id=msg.chat_id,
+                    content=msg.content,
+                    type="ai",
+                    metadata={
+                        "source": "subagent",
+                        "subagent_name": (msg.metadata or {}).get("subagent_name", ""),
+                    },
+                )
             )
             return
 

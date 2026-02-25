@@ -15,15 +15,12 @@ from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langgraph.graph.state import CompiledStateGraph
 
-from langclaw.agents.prompts.memory import MEMORY_SYSTEM_PROMPT
 from langclaw.agents.tools import build_cron_tools, build_gmail_tools, build_web_tools
 from langclaw.config.schema import LangclawConfig
+from langclaw.context import LangclawContext
 from langclaw.middleware.channel_context import ChannelContextMiddleware
 from langclaw.middleware.guardrails import ContentFilterMiddleware, PIIMiddleware
-from langclaw.middleware.permissions import (
-    LangclawContext,
-    build_tool_permission_middleware,
-)
+from langclaw.middleware.permissions import build_tool_permission_middleware
 from langclaw.middleware.rate_limit import RateLimitMiddleware
 from langclaw.utils import to_virtual_path  # for extra_skills conversion
 
@@ -32,6 +29,7 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
     from langgraph.types import Checkpointer
 
+    from langclaw.bus.base import BaseMessageBus
     from langclaw.cron.scheduler import CronManager
 
 # ---------------------------------------------------------------------------
@@ -41,6 +39,78 @@ if TYPE_CHECKING:
 _DEFAULTS_DIR = Path(__file__).parent / "defaults"
 _DEFAULT_AGENTS_MD = _DEFAULTS_DIR / "AGENTS.md"
 _DEFAULT_SKILLS_DIR = _DEFAULTS_DIR / "skills"
+
+# ---------------------------------------------------------------------------
+# Subagent helpers
+# ---------------------------------------------------------------------------
+
+
+def _resolve_tools_by_name(
+    tool_names: list[str] | None,
+    all_tools: list[Any],
+) -> list[Any] | None:
+    """Resolve tool name strings to tool objects.
+
+    Returns ``None`` when *tool_names* is ``None`` (inherit from main agent).
+    Raises ``ValueError`` for unrecognised names.
+    """
+    if tool_names is None:
+        return None
+
+    tool_map: dict[str, Any] = {}
+    for t in all_tools:
+        name = getattr(t, "name", None)
+        if name:
+            tool_map[name] = t
+
+    resolved: list[Any] = []
+    for name in tool_names:
+        if name not in tool_map:
+            available = ", ".join(sorted(tool_map)) or "(none)"
+            raise ValueError(
+                f"Subagent requested unknown tool {name!r}. Available tools: {available}"
+            )
+        resolved.append(tool_map[name])
+    return resolved
+
+
+def _build_deepagent_subagents(
+    specs: list[dict[str, Any]],
+    all_tools: list[Any],
+    config: LangclawConfig,
+) -> list[dict[str, Any]]:
+    """Convert langclaw subagent specs to deepagents ``SubAgent`` dicts.
+
+    Each subagent receives its own lightweight middleware stack
+    (channel context injection and, when enabled, RBAC filtering).
+    """
+    result: list[dict[str, Any]] = []
+    for spec in specs:
+        if spec.get("output", "main_agent") != "main_agent":
+            continue
+
+        sa_tools = _resolve_tools_by_name(spec.get("tools"), all_tools)
+
+        sa_middleware: list[Any] = [ChannelContextMiddleware()]
+        if config.permissions.enabled:
+            sa_middleware.append(
+                build_tool_permission_middleware(config.permissions),
+            )
+
+        sa: dict[str, Any] = {
+            "name": spec["name"],
+            "description": spec["description"],
+            "system_prompt": spec["system_prompt"],
+            "middleware": sa_middleware,
+        }
+        if sa_tools is not None:
+            sa["tools"] = sa_tools
+        if spec.get("model") is not None:
+            sa["model"] = spec["model"]
+
+        result.append(sa)
+    return result
+
 
 # ---------------------------------------------------------------------------
 # Factory
@@ -55,6 +125,9 @@ def create_claw_agent(
     extra_tools: list[BaseTool | Any] | None = None,
     extra_skills: list[str] | None = None,
     extra_middleware: list[AgentMiddleware] | None = None,
+    extra_subagents: list[dict[str, Any]] | None = None,
+    system_prompt: str | None = None,
+    bus: BaseMessageBus | None = None,
     model: BaseChatModel | None = None,
 ) -> CompiledStateGraph:
     """
@@ -75,8 +148,16 @@ def create_claw_agent(
                           schedule, list, and remove recurring jobs.
         extra_tools:      Additional LangChain tools beyond the defaults.
         extra_skills:     Paths to directories containing ``SKILL.md`` files.
-        extra_middleware: Additional ``AgentMiddleware`` instances inserted
+        extra_middleware:  Additional ``AgentMiddleware`` instances inserted
                           after the built-in middleware stack.
+        extra_subagents:  Langclaw subagent specs registered via
+                          ``app.subagent()``.  Converted to deepagents
+                          ``SubAgent`` dicts internally.
+        system_prompt:    Extra instructions appended after the base
+                          ``AGENTS.md``.  ``None`` means use the base
+                          prompt only.
+        bus:              Running ``BaseMessageBus`` — required when any
+                          subagent uses ``output="channel"`` (Phase 2).
         model:            Pre-built chat model. If omitted, resolved from config.
 
     Returns:
@@ -101,8 +182,11 @@ def create_claw_agent(
     if cron_manager is not None:
         tools += build_cron_tools(config, cron_manager)
 
-    agents_md = config.agents.agents_md_file.read_text("utf-8")
-    system_prompt = f"""{agents_md}\n\n{MEMORY_SYSTEM_PROMPT}"""
+    base_prompt = config.agents.agents_md_file.read_text("utf-8")
+    if system_prompt:
+        system_prompt = f"{base_prompt}\n\n{system_prompt}"
+    else:
+        system_prompt = base_prompt
 
     # Built-in middleware stack (order matters):
     #   1. ChannelContextMiddleware  — inject channel metadata first
@@ -139,6 +223,41 @@ def create_claw_agent(
 
     context_schema = LangclawContext
 
+    # --- Subagents -----------------------------------------------------------
+    subagents: list[dict[str, Any]] | None = None
+    if extra_subagents:
+        main_agent_subagents = _build_deepagent_subagents(
+            extra_subagents,
+            tools,
+            config,
+        )
+
+        channel_routed_specs = [s for s in extra_subagents if s.get("output") == "channel"]
+        if channel_routed_specs:
+            from langclaw.agents.subagents import build_channel_routed_subagent
+
+            if bus is None:
+                raise ValueError(
+                    "A running message bus is required for channel-routed "
+                    "subagents (output='channel'). This is normally provided "
+                    "by app.run(); if using create_claw_agent directly, pass "
+                    "the bus= argument."
+                )
+            for spec in channel_routed_specs:
+                sa_tools = _resolve_tools_by_name(spec.get("tools"), tools)
+                main_agent_subagents.append(
+                    build_channel_routed_subagent(
+                        spec=spec,
+                        bus=bus,
+                        tools=sa_tools or tools,
+                        model=spec.get("model") or resolved_model,
+                        config=config,
+                    )
+                )
+
+        if main_agent_subagents:
+            subagents = main_agent_subagents
+
     return create_deep_agent(
         model=resolved_model,
         tools=tools,
@@ -151,4 +270,5 @@ def create_claw_agent(
         ),
         middleware=middleware,
         context_schema=context_schema,
+        subagents=subagents,
     )

@@ -16,9 +16,9 @@ Copy `.env.example` to `.env` in your project root and fill in:
 
 ## Research Assistant
 
-A stock-price bot with scheduled digest reports.
+A stock-price bot with a research subagent and scheduled digest reports.
 
-**What it shows:** `@app.tool()`, `@app.command()`, `app.role()`, lifecycle hooks, cron-ready design.
+**What it shows:** `@app.tool()`, `app.subagent()`, `@app.command()`, `app.role()`, lifecycle hooks, cron-ready design.
 
 ```bash
 python examples/research_assistant.py
@@ -27,6 +27,7 @@ python examples/research_assistant.py
 Then message the bot:
 
 - *"What's the price of NVDA?"* — calls the custom `get_stock_price` tool
+- *"Compare NVDA and AMD's market position"* — delegates to the `deep-researcher` subagent, which runs multiple web searches in isolated context and returns a synthesised report
 - *"Search the web for AI chip market news"* — uses built-in `web_search`
 - *"Schedule a daily market summary at 9 AM"* — creates a cron job via the agent
 - `/watchlist` — instant price snapshot, no LLM involved

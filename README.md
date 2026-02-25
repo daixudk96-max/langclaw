@@ -86,6 +86,38 @@ app.add_channel(WhatsAppChannel(token="..."))
 app.run()
 ```
 
+### Register subagents
+
+Subagents let the main agent delegate complex tasks to specialised child agents with isolated context. Results flow back through the main agent, keeping its context clean.
+
+```python
+from langclaw import Langclaw
+
+app = Langclaw()
+
+@app.tool()
+async def web_search(query: str) -> str:
+    """Search the web."""
+    return await do_search(query)
+
+app.subagent(
+    "researcher",
+    description="Conducts in-depth research using web search",
+    system_prompt="You are a thorough researcher. Search, synthesise, cite sources.",
+    tools=["web_search"],
+    model="openai:gpt-4.1",
+)
+
+app.subagent(
+    "analyst",
+    description="Analyses data and produces concise summaries",
+    system_prompt="You are a data analyst. Return key insights as bullet points.",
+)
+
+if __name__ == "__main__":
+    app.run()
+```
+
 ### Use third-party tool packs
 
 ```python
@@ -179,7 +211,8 @@ flowchart TB
 
 - [ ] **Multi-agent support** — named agents with distinct models and per-agent tool sets, routed by channel or user intent
 - [ ] **More channels** — Slack, WhatsApp, REST API gateway
-- [ ] **Sub-agent delegation** — allow the primary agent to spawn child agents for parallel or specialised tasks
+- [x] **Sub-agent delegation** — `app.subagent()` registers child agents with isolated context, RBAC middleware, and per-subagent model/tool sets
+- [ ] **Channel-routed subagents** — subagents that publish results directly to the originating channel via the message bus (`output="channel"`)
 - [ ] **Test coverage** - increase test coverage
 
 ## Further reading

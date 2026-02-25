@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
     from langgraph.types import Checkpointer
 
+    from langclaw.bus.base import BaseMessageBus
     from langclaw.cron.scheduler import CronManager
     from langclaw.gateway.base import BaseChannel
 
@@ -46,18 +47,46 @@ class Langclaw:
     registration.
 
     Args:
-        config: Pre-built configuration. When ``None``, loaded from env vars,
-                ``.env``, and ``~/.langclaw/config.json`` via
-                :func:`~langclaw.config.schema.load_config`.
+        config:        Pre-built configuration. When ``None``, loaded from
+                       env vars, ``.env``, and ``~/.langclaw/config.json``
+                       via :func:`~langclaw.config.schema.load_config`.
+        system_prompt: Additional instructions **appended** after the base
+                       ``AGENTS.md`` prompt.  Use this to give your app a
+                       distinct personality, domain focus, or behavioural
+                       rules without replacing the built-in defaults
+                       (memory protocol, tone, tool-use guidelines).
+
+                       The base ``AGENTS.md`` is always loaded first from
+                       the workspace (``~/.langclaw/workspace/AGENTS.md``).
+                       Your ``system_prompt`` is concatenated after it,
+                       separated by a blank line.  To fully replace the
+                       base prompt, edit ``AGENTS.md`` directly instead.
+
+                       Example::
+
+                           app = Langclaw(
+                               system_prompt=(
+                                   "## Research Assistant\\n"
+                                   "You are a financial research assistant.\\n"
+                                   "Always check stock prices before answering."
+                               ),
+                           )
     """
 
-    def __init__(self, config: LangclawConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: LangclawConfig | None = None,
+        *,
+        system_prompt: str | None = None,
+    ) -> None:
         self._config = config or load_config()
+        self._system_prompt = system_prompt
         self._extra_tools: list[Any] = []
         self._extra_channels: list[BaseChannel] = []
         self._extra_middleware: list[Any] = []
         self._extra_roles: dict[str, list[str]] = {}
         self._extra_commands: list[tuple[str, Callable[[CommandContext], Awaitable[str]], str]] = []
+        self._subagents: list[dict[str, Any]] = []
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
 
@@ -176,6 +205,74 @@ class Langclaw:
         self._extra_roles[name] = merged
 
     # ------------------------------------------------------------------
+    # Subagent registration
+    # ------------------------------------------------------------------
+
+    def subagent(
+        self,
+        name: str,
+        *,
+        description: str,
+        system_prompt: str,
+        tools: list[str] | None = None,
+        model: str | BaseChatModel | None = None,
+        roles: list[str] | None = None,
+        output: str = "main_agent",
+    ) -> None:
+        """Register a subagent that the main agent can delegate tasks to.
+
+        Subagents are invoked by the main agent via the ``task`` tool
+        provided by deepagents.  Each subagent runs in an isolated
+        context and returns a single result.
+
+        Args:
+            name:          Unique identifier used by the main agent when
+                           calling the ``task`` tool.
+            description:   What this subagent does.  Be specific —
+                           the main agent uses this to decide when to
+                           delegate.
+            system_prompt: Instructions for the subagent.
+            tools:         Tool **names** this subagent may use.  Resolved
+                           at build time against all registered tools.
+                           ``None`` inherits the main agent's full tool set.
+            model:         Override the main agent's model for this
+                           subagent.  Accepts ``"provider:model"`` strings
+                           or a ``BaseChatModel`` instance.
+            roles:         Reserved for future RBAC scoping of which user
+                           roles may trigger this subagent.
+            output:        ``"main_agent"`` (default) returns the result
+                           to the main agent.  ``"channel"`` publishes
+                           the result directly to the originating channel
+                           via the message bus (Phase 2).
+
+        Example::
+
+            app.subagent(
+                "researcher",
+                description="Researches topics using web search",
+                system_prompt="You are a thorough researcher...",
+                tools=["web_search", "web_fetch"],
+                model="openai:gpt-4.1",
+            )
+        """
+        if output not in ("main_agent", "channel"):
+            raise ValueError(
+                f"Invalid output mode {output!r} for subagent {name!r}. "
+                "Must be 'main_agent' or 'channel'."
+            )
+        self._subagents.append(
+            {
+                "name": name,
+                "description": description,
+                "system_prompt": system_prompt,
+                "tools": tools,
+                "model": model,
+                "roles": roles,
+                "output": output,
+            }
+        )
+
+    # ------------------------------------------------------------------
     # Channels & middleware
     # ------------------------------------------------------------------
 
@@ -211,12 +308,20 @@ class Langclaw:
         checkpointer: Checkpointer | None = None,
         cron_manager: CronManager | None = None,
         model: BaseChatModel | None = None,
+        bus: BaseMessageBus | None = None,
     ) -> CompiledStateGraph:
         """Build the agent with all registered tools, middleware, and roles.
 
         This is the lower-level API — use it when you need the compiled
         LangGraph agent without the full gateway (e.g. for a REPL or
         tests).  :meth:`run` calls this internally.
+
+        Args:
+            checkpointer: LangGraph checkpoint saver for conversation state.
+            cron_manager:  Running cron manager for scheduled jobs.
+            model:         Override the configured LLM.
+            bus:           Running message bus — required when any registered
+                           subagent uses ``output="channel"``.
 
         Returns:
             A compiled LangGraph runnable.
@@ -229,6 +334,9 @@ class Langclaw:
             cron_manager=cron_manager,
             extra_tools=self._extra_tools or None,
             extra_middleware=self._extra_middleware or None,
+            extra_subagents=self._subagents or None,
+            system_prompt=self._system_prompt,
+            bus=bus,
             model=model,
         )
 
@@ -296,6 +404,7 @@ class Langclaw:
                 agent = self.create_agent(
                     checkpointer=checkpointer_backend.get(),
                     cron_manager=cron_manager,
+                    bus=bus,
                 )
 
                 manager = GatewayManager(

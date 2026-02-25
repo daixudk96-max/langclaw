@@ -13,8 +13,8 @@ from langchain.tools import ToolRuntime
 from langchain_core.tools import BaseTool, tool
 from loguru import logger
 
+from langclaw.context import LangclawContext
 from langclaw.cron.utils import make_cron_context_id
-from langclaw.middleware.permissions import LangclawContext
 
 if TYPE_CHECKING:
     from langclaw.cron.scheduler import CronManager
@@ -158,6 +158,7 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
             name = f"{message[:40].strip()}..."
             # Tasks get their own isolated thread; reminders share the current one.
             effective_context_id = context_id if type == "reminder" else make_cron_context_id()
+            user_role = ctx.user_role if ctx else ""
             try:
                 job_id_new = await cron_manager.add_job(
                     name=name,
@@ -168,6 +169,7 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
                     chat_id=chat_id,
                     cron_expr=cron_expr,
                     every_seconds=every_seconds,
+                    user_role=user_role,
                 )
             except Exception as exc:
                 import traceback

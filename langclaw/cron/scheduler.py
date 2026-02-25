@@ -74,6 +74,7 @@ async def _fire_job(
     chat_id: str,
     job_name: str,
     schedule: str = "",
+    user_role: str = "",
 ) -> None:
     """APScheduler job function — must stay at module level to be picklable.
 
@@ -83,6 +84,11 @@ async def _fire_job(
     ``schedule`` is stored for introspection (``cron list``) and is not used
     during execution. It defaults to ``""`` so old persisted jobs without the
     field continue to fire without error.
+
+    ``user_role`` is the RBAC role resolved at schedule time and carried
+    through so cron-fired messages run with the same permissions as the
+    user who created the job.  Defaults to ``""`` for backward compat
+    with jobs persisted before this field was added.
     """
     manager = _MANAGERS.get(manager_id)
     if manager is None and _MANAGERS:
@@ -97,6 +103,12 @@ async def _fire_job(
         )
         return
     logger.debug(f"Cron job '{job_name}' fired → publishing to bus.")
+    metadata: dict[str, str] = {
+        "source": "cron",
+        "job_name": job_name,
+    }
+    if user_role:
+        metadata["user_role"] = user_role
     await manager._bus.publish(
         InboundMessage(
             channel=channel,
@@ -104,10 +116,7 @@ async def _fire_job(
             context_id=context_id,
             content=_wrap_cron_runtime_prompt(message),
             chat_id=chat_id,
-            metadata={
-                "source": "cron",
-                "job_name": job_name,
-            },
+            metadata=metadata,
         )
     )
 
@@ -267,6 +276,7 @@ class CronManager:
         chat_id: str = "",
         cron_expr: str | None = None,
         every_seconds: int | None = None,
+        user_role: str = "",
     ) -> str:
         """
         Schedule a job that fires a message into the agent pipeline.
@@ -280,6 +290,8 @@ class CronManager:
             chat_id:       Delivery address on the channel (falls back to user_id).
             cron_expr:     Standard 5-field cron expression (``"0 9 * * *"``).
             every_seconds: Interval in seconds (alternative to cron_expr).
+            user_role:     RBAC role of the scheduling user (persisted so the
+                           fired job runs with the same permissions).
 
         Returns:
             A stable job ID string.
@@ -316,20 +328,23 @@ class CronManager:
         # The bus is looked up from _MANAGERS at fire time via manager_id.
         # ``schedule`` is stored so CLI / list_jobs can reconstruct CronJob
         # without needing to introspect the trigger object.
+        fire_kwargs: dict[str, str] = {
+            "manager_id": self._manager_id,
+            "message": message,
+            "channel": channel,
+            "user_id": user_id,
+            "context_id": context_id,
+            "chat_id": chat_id,
+            "job_name": name,
+            "schedule": job.schedule,
+        }
+        if user_role:
+            fire_kwargs["user_role"] = user_role
         await self._scheduler.add_schedule(
             _fire_job,
             trigger,
             id=job_id,
-            kwargs={
-                "manager_id": self._manager_id,
-                "message": message,
-                "channel": channel,
-                "user_id": user_id,
-                "context_id": context_id,
-                "chat_id": chat_id,
-                "job_name": name,
-                "schedule": job.schedule,
-            },
+            kwargs=fire_kwargs,
         )
         logger.info(f"Cron job '{name}' scheduled (id={job_id}, schedule={job.schedule}).")
         return job_id

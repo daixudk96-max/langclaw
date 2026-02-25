@@ -1,14 +1,23 @@
 """
 Research Assistant — a multi-channel bot that looks up stock prices,
-searches the web, and can schedule daily digest reports via cron.
+searches the web, and delegates complex research to specialised subagents.
 
 Demonstrates
 ------------
-- ``@app.tool()``     — custom async tool (stock price via httpx)
-- ``@app.command()``  — fast command that bypasses the LLM
-- ``app.role()``      — RBAC: analysts get every tool, free users get web_search only
-- lifecycle hooks     — ``@app.on_startup`` / ``@app.on_shutdown``
-- cron-ready          — users can ask the agent to schedule recurring reports
+- ``@app.tool()``      — custom async tool (stock price via httpx)
+- ``app.subagent()``   — delegate deep research to an isolated subagent
+- ``@app.command()``   — fast command that bypasses the LLM
+- ``app.role()``       — RBAC: analysts get every tool, free users get web_search only
+- lifecycle hooks      — ``@app.on_startup`` / ``@app.on_shutdown``
+- cron-ready           — users can ask the agent to schedule recurring reports
+
+Subagent workflow
+-----------------
+When the user asks a complex question like "Compare NVDA and AMD's market
+position", the main agent delegates to the ``deep-researcher`` subagent
+via the built-in ``task`` tool. The subagent performs multiple web searches
+in its own isolated context, synthesises the findings, and returns a
+concise summary. The main agent's context stays clean.
 
 Run
 ---
@@ -26,7 +35,17 @@ from loguru import logger
 from langclaw import Langclaw
 from langclaw.gateway.commands import CommandContext
 
-app = Langclaw()
+app = Langclaw(
+    system_prompt=(
+        "## Research Assistant\n"
+        "You are a financial research assistant specializing in stock "
+        "analysis and market news.\n\n"
+        "- When users ask about stocks, check the latest price first.\n"
+        "- For complex comparisons or multi-source research, delegate "
+        "to the deep-researcher subagent.\n"
+        "- Cite sources when summarising web search results."
+    ),
+)
 
 # ---------------------------------------------------------------------------
 # Shared HTTP client (created once, closed on shutdown)
@@ -126,6 +145,31 @@ async def watchlist_cmd(ctx: CommandContext) -> str:
         except Exception:
             lines.append(f"  {ticker}: unavailable")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Subagents — delegate complex research to isolated context
+# ---------------------------------------------------------------------------
+
+app.subagent(
+    "deep-researcher",
+    description=(
+        "Conducts in-depth, multi-step research using web search. "
+        "Use for comparative analysis, market reports, or any question "
+        "that requires searching multiple sources and synthesising."
+    ),
+    system_prompt=(
+        "You are a thorough financial researcher.\n\n"
+        "1. Break the question into 2-4 focused web searches.\n"
+        "2. Use web_search for each query.\n"
+        "3. Synthesise into a concise report (under 400 words):\n"
+        "   - Summary (2-3 sentences)\n"
+        "   - Key findings (bullet points)\n"
+        "   - Sources (URLs)\n\n"
+        "Return ONLY the final report — no intermediate reasoning."
+    ),
+    tools=["web_search", "web_fetch"],
+)
 
 
 # ---------------------------------------------------------------------------
