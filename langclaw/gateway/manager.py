@@ -11,6 +11,7 @@ Architecture:
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -22,7 +23,7 @@ from langclaw.checkpointer.base import BaseCheckpointerBackend
 from langclaw.config.schema import LangclawConfig
 from langclaw.cron.scheduler import CronManager
 from langclaw.gateway.base import BaseChannel
-from langclaw.gateway.commands import CommandRouter
+from langclaw.gateway.commands import CommandContext, CommandRouter
 from langclaw.middleware.permissions import LangclawContext
 from langclaw.session.manager import SessionManager
 
@@ -47,6 +48,8 @@ class GatewayManager:
                               gateway. When provided, scheduled jobs publish
                               ``InboundMessage``s to the bus and flow through
                               the same agent pipeline as channel messages.
+        extra_commands:       Optional list of ``(name, handler, description)``
+                              tuples registered via ``@app.command()``.
     """
 
     def __init__(
@@ -57,6 +60,10 @@ class GatewayManager:
         agent: CompiledStateGraph,
         channels: list[BaseChannel],
         cron_manager: CronManager | None = None,
+        extra_commands: list[
+            tuple[str, Callable[[CommandContext], Awaitable[str]], str]
+        ]
+        | None = None,
     ) -> None:
         self._config = config
         self._bus = bus
@@ -69,6 +76,9 @@ class GatewayManager:
             self._sessions,
             self._cron_manager,
         )
+        if extra_commands:
+            for cmd_name, handler, description in extra_commands:
+                self._command_router.register(cmd_name, handler, description)
         self._channel_map: dict[str, BaseChannel] = {
             ch.name: ch for ch in self._channels
         }

@@ -20,13 +20,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 from langclaw.agents.builder import create_claw_agent
 from langclaw.config.schema import LangclawConfig, PermissionsConfig, RoleConfig, load_config
+from langclaw.gateway.commands import CommandContext
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -56,6 +57,9 @@ class Langclaw:
         self._extra_channels: list[BaseChannel] = []
         self._extra_middleware: list[Any] = []
         self._extra_roles: dict[str, list[str]] = {}
+        self._extra_commands: list[
+            tuple[str, Callable[[CommandContext], Awaitable[str]], str]
+        ] = []
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
 
@@ -112,6 +116,49 @@ class Langclaw:
     def register_tools(self, tools: list[Any]) -> None:
         """Register multiple ``BaseTool`` instances at once."""
         self._extra_tools.extend(tools)
+
+    # ------------------------------------------------------------------
+    # Command registration
+    # ------------------------------------------------------------------
+
+    def command(
+        self,
+        name: str,
+        *,
+        description: str = "",
+    ) -> Callable:
+        """Decorator to register a custom bot command.
+
+        Commands bypass the LLM and message bus — they are fast system
+        operations handled directly by the :class:`CommandRouter`.
+
+        The decorated function must accept a single
+        :class:`~langclaw.gateway.commands.CommandContext` argument and
+        return a ``str`` response.
+
+        Args:
+            name:        Command name without the leading ``/``
+                         (e.g. ``"ping"``).
+            description: Short help text shown by ``/help``.
+
+        Returns:
+            A decorator that registers the command and returns the
+            original function.
+
+        Example::
+
+            @app.command("ping", description="check if bot is alive")
+            async def ping(ctx: CommandContext) -> str:
+                return "Pong!"
+        """
+
+        def decorator(
+            fn: Callable[[CommandContext], Awaitable[str]],
+        ) -> Callable[[CommandContext], Awaitable[str]]:
+            self._extra_commands.append((name, fn, description))
+            return fn
+
+        return decorator
 
     # ------------------------------------------------------------------
     # RBAC
@@ -262,6 +309,7 @@ class Langclaw:
                     agent=agent,
                     channels=channels,
                     cron_manager=cron_manager,
+                    extra_commands=self._extra_commands or None,
                 )
 
                 cron_status = "enabled" if cron_manager else "disabled"
@@ -353,4 +401,4 @@ class Langclaw:
         return channels
 
 
-__all__ = ["Langclaw"]
+__all__ = ["Langclaw", "CommandContext"]

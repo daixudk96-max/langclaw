@@ -94,31 +94,7 @@ class DiscordChannel(BaseChannel):
         tree = discord.app_commands.CommandTree(client)
         self._tree = tree
 
-        @tree.command(name="start", description="Say hello")
-        async def slash_start(interaction: discord.Interaction) -> None:
-            await self._handle_slash(interaction, "start")
-
-        @tree.command(name="help", description="Show available commands")
-        async def slash_help(interaction: discord.Interaction) -> None:
-            await self._handle_slash(interaction, "help")
-
-        @tree.command(name="reset", description="Start a fresh conversation")
-        async def slash_reset(interaction: discord.Interaction) -> None:
-            await self._handle_slash(interaction, "reset")
-
-        @tree.command(name="cron", description="List or remove cron jobs")
-        @discord.app_commands.describe(
-            action="list or remove", job_id="Job ID (for remove)"
-        )
-        async def slash_cron(
-            interaction: discord.Interaction,
-            action: str = "list",
-            job_id: str | None = None,
-        ) -> None:
-            args = [action]
-            if job_id:
-                args.append(job_id)
-            await self._handle_slash(interaction, "cron", args)
+        self._register_slash_commands(tree, discord)
 
         @client.event
         async def on_ready() -> None:
@@ -462,6 +438,44 @@ class DiscordChannel(BaseChannel):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _register_slash_commands(self, tree: Any, discord: Any) -> None:
+        """Dynamically register Discord slash commands from the CommandRouter.
+
+        The ``cron`` command keeps its typed parameters (action, job_id).
+        All other commands are registered with no extra parameters.
+        """
+        if self._command_router is None:
+            return
+
+        def _make_handler(cmd_name: str):
+            async def handler(interaction: discord.Interaction) -> None:
+                await self._handle_slash(interaction, cmd_name)
+            return handler
+
+        for entry in self._command_router.list_commands():
+            if entry.name == "cron":
+                @tree.command(
+                    name="cron",
+                    description=entry.description or "List or remove cron jobs",
+                )
+                @discord.app_commands.describe(
+                    action="list or remove", job_id="Job ID (for remove)"
+                )
+                async def slash_cron(
+                    interaction: discord.Interaction,
+                    action: str = "list",
+                    job_id: str | None = None,
+                ) -> None:
+                    args = [action]
+                    if job_id:
+                        args.append(job_id)
+                    await self._handle_slash(interaction, "cron", args)
+            else:
+                tree.command(
+                    name=entry.name,
+                    description=entry.description or entry.name,
+                )(_make_handler(entry.name))
 
     async def _handle_slash(
         self,

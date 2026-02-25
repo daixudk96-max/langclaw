@@ -154,7 +154,6 @@ class TelegramChannel(BaseChannel):
         try:
             from telegram.ext import (
                 Application,
-                CommandHandler,
                 MessageHandler,
                 filters,
             )
@@ -187,10 +186,7 @@ class TelegramChannel(BaseChannel):
         self._app = app
 
         app.add_error_handler(self._on_error)
-        app.add_handler(CommandHandler("start", self._handle_command))
-        app.add_handler(CommandHandler("reset", self._handle_command))
-        app.add_handler(CommandHandler("help", self._handle_command))
-        app.add_handler(CommandHandler("cron", self._handle_command))
+        app.add_handler(MessageHandler(filters.COMMAND, self._handle_command))
         app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
         )
