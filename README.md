@@ -162,7 +162,16 @@ Available extras: `telegram`, `discord`, `websocket`, `postgres`, `rabbitmq`, `k
    LANGCLAW__CHANNELS__TELEGRAM__BOT_TOKEN=123456:ABC-DEF...
    ```
 
-3. **Create your app** (`app.py`):
+3. **Run your agent** (Choose one option):
+
+   **Option 1: Using the CLI** (Recommended for new projects)
+   ```bash
+   langclaw init
+   langclaw gateway
+   ```
+
+   **Option 2: Programmatically** (For custom setups)
+   Create an `app.py` file:
    ```python
    from langclaw import Langclaw
 
@@ -178,8 +187,7 @@ Available extras: `telegram`, `discord`, `websocket`, `postgres`, `rabbitmq`, `k
    if __name__ == "__main__":
        app.run()
    ```
-
-4. **Run it**:
+   Then run it:
    ```bash
    python app.py
    ```
