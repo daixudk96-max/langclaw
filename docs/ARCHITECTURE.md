@@ -23,6 +23,10 @@ Previously, developers had to manually wire the LangGraph agent, gateway, bus, a
 Channels and the cron scheduler do not talk to the agent directly. They publish `InboundMessage` objects to a unified bus.
 - **Why?** This decoupling allows the gateway to horizontally scale. You can swap the default `asyncio` memory bus for RabbitMQ or Kafka in distributed environments.
 
+Each `InboundMessage` has two routing fields:
+- `origin`: Who produced the message (`"user"`, `"channel"`, `"cron"`, `"heartbeat"`, `"subagent"`). This drives how the message is converted to a LangChain message type.
+- `to`: Where to route (`"agent"` or `"channel"`). Messages with `to="channel"` bypass the agent and are delivered directly to the originating channel.
+
 ### Middleware Pipeline
 Instead of hardcoding tool permission logic into the agent prompt, Langclaw uses a middleware pipeline (e.g., `ToolPermissionMiddleware`).
 - **Why?** It securely filters the available tools based on the user's resolved role *before* the LangGraph agent even sees them, preventing prompt injection attacks from accessing restricted tools.

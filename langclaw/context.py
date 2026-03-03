@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-@dataclass
+@dataclass(kw_only=True)
 class LangclawContext:
     """Runtime context schema passed to every agent invocation.
 

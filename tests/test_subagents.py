@@ -175,6 +175,7 @@ class TestBuildDeepagentSubagents:
 
     def test_basic_conversion(self):
         from langclaw.agents.builder import _build_deepagent_subagents
+        from langclaw.context import LangclawContext
 
         specs = [
             {
@@ -186,7 +187,7 @@ class TestBuildDeepagentSubagents:
                 "output": "main_agent",
             }
         ]
-        result = _build_deepagent_subagents(specs, [], self._make_config())
+        result = _build_deepagent_subagents(specs, [], self._make_config(), LangclawContext)
         assert len(result) == 1
         assert result[0]["name"] == "helper"
         assert result[0]["description"] == "Helps"
@@ -195,6 +196,7 @@ class TestBuildDeepagentSubagents:
 
     def test_tools_resolved(self):
         from langclaw.agents.builder import _build_deepagent_subagents
+        from langclaw.context import LangclawContext
 
         tools = [self._make_mock_tool("web_search"), self._make_mock_tool("cron")]
         specs = [
@@ -207,12 +209,13 @@ class TestBuildDeepagentSubagents:
                 "output": "main_agent",
             }
         ]
-        result = _build_deepagent_subagents(specs, tools, self._make_config())
+        result = _build_deepagent_subagents(specs, tools, self._make_config(), LangclawContext)
         assert len(result[0]["tools"]) == 1
         assert result[0]["tools"][0].name == "web_search"
 
     def test_middleware_includes_channel_context(self):
         from langclaw.agents.builder import _build_deepagent_subagents
+        from langclaw.context import LangclawContext
         from langclaw.middleware.channel_context import ChannelContextMiddleware
 
         specs = [
@@ -225,12 +228,13 @@ class TestBuildDeepagentSubagents:
                 "output": "main_agent",
             }
         ]
-        result = _build_deepagent_subagents(specs, [], self._make_config())
+        result = _build_deepagent_subagents(specs, [], self._make_config(), LangclawContext)
         mw_types = [type(m) for m in result[0]["middleware"]]
         assert ChannelContextMiddleware in mw_types
 
     def test_middleware_includes_rbac_when_enabled(self):
         from langclaw.agents.builder import _build_deepagent_subagents
+        from langclaw.context import LangclawContext
 
         specs = [
             {
@@ -243,11 +247,12 @@ class TestBuildDeepagentSubagents:
             }
         ]
         config = self._make_config(permissions_enabled=True)
-        result = _build_deepagent_subagents(specs, [], config)
+        result = _build_deepagent_subagents(specs, [], config, LangclawContext)
         assert len(result[0]["middleware"]) == 2
 
     def test_middleware_no_rbac_when_disabled(self):
         from langclaw.agents.builder import _build_deepagent_subagents
+        from langclaw.context import LangclawContext
 
         specs = [
             {
@@ -259,11 +264,12 @@ class TestBuildDeepagentSubagents:
                 "output": "main_agent",
             }
         ]
-        result = _build_deepagent_subagents(specs, [], self._make_config())
+        result = _build_deepagent_subagents(specs, [], self._make_config(), LangclawContext)
         assert len(result[0]["middleware"]) == 1
 
     def test_model_passed_through(self):
         from langclaw.agents.builder import _build_deepagent_subagents
+        from langclaw.context import LangclawContext
 
         specs = [
             {
@@ -275,11 +281,12 @@ class TestBuildDeepagentSubagents:
                 "output": "main_agent",
             }
         ]
-        result = _build_deepagent_subagents(specs, [], self._make_config())
+        result = _build_deepagent_subagents(specs, [], self._make_config(), LangclawContext)
         assert result[0]["model"] == "openai:gpt-4.1"
 
     def test_model_omitted_when_none(self):
         from langclaw.agents.builder import _build_deepagent_subagents
+        from langclaw.context import LangclawContext
 
         specs = [
             {
@@ -291,12 +298,13 @@ class TestBuildDeepagentSubagents:
                 "output": "main_agent",
             }
         ]
-        result = _build_deepagent_subagents(specs, [], self._make_config())
+        result = _build_deepagent_subagents(specs, [], self._make_config(), LangclawContext)
         assert "model" not in result[0]
 
     def test_channel_output_specs_skipped(self):
         """Channel-routed specs are handled separately, not by this function."""
         from langclaw.agents.builder import _build_deepagent_subagents
+        from langclaw.context import LangclawContext
 
         specs = [
             {
@@ -308,7 +316,7 @@ class TestBuildDeepagentSubagents:
                 "output": "channel",
             }
         ]
-        result = _build_deepagent_subagents(specs, [], self._make_config())
+        result = _build_deepagent_subagents(specs, [], self._make_config(), LangclawContext)
         assert len(result) == 0
 
 
@@ -645,7 +653,8 @@ class TestChannelRoutedRunnable:
         assert msg.user_id == "123"
         assert msg.chat_id == "456"
         assert msg.content == "Here are the results"
-        assert msg.metadata["_direct_delivery"] is True
+        assert msg.origin == "subagent"
+        assert msg.to == "channel"
         assert msg.metadata["subagent_name"] == "researcher"
 
         assert len(result["messages"]) == 1
@@ -702,7 +711,7 @@ class TestChannelRoutedRunnable:
 
 
 class TestDirectDelivery:
-    """Verify _handle short-circuits for _direct_delivery messages."""
+    """Verify _handle short-circuits for to='channel' messages."""
 
     @pytest.mark.asyncio
     async def test_direct_delivery_sends_to_channel(self):
@@ -724,8 +733,9 @@ class TestDirectDelivery:
             context_id="ctx",
             content="Subagent result text",
             chat_id="c1",
+            origin="subagent",
+            to="channel",
             metadata={
-                "_direct_delivery": True,
                 "subagent_name": "researcher",
             },
         )
@@ -740,6 +750,41 @@ class TestDirectDelivery:
         assert out.chat_id == "c1"
         assert out.type == "ai"
         assert out.metadata["subagent_name"] == "researcher"
+        assert out.metadata["origin"] == "subagent"
+
+    @pytest.mark.asyncio
+    async def test_legacy_direct_delivery_still_works(self):
+        """Backward compat: _direct_delivery metadata still bypasses agent."""
+        from unittest.mock import AsyncMock
+
+        from langclaw.bus.base import InboundMessage, OutboundMessage
+        from langclaw.gateway.manager import GatewayManager
+
+        mock_channel = AsyncMock()
+        mock_channel.name = "telegram"
+        mock_channel.is_enabled.return_value = True
+
+        gm = GatewayManager.__new__(GatewayManager)
+        gm._channel_map = {"telegram": mock_channel}
+
+        msg = InboundMessage(
+            channel="telegram",
+            user_id="u1",
+            context_id="ctx",
+            content="Legacy delivery",
+            chat_id="c1",
+            metadata={
+                "_direct_delivery": True,
+                "subagent_name": "legacy",
+            },
+        )
+
+        await gm._handle(msg)
+
+        mock_channel.send.assert_called_once()
+        out: OutboundMessage = mock_channel.send.call_args[0][0]
+        assert out.content == "Legacy delivery"
+        assert out.type == "ai"
 
     @pytest.mark.asyncio
     async def test_non_direct_delivery_not_shortcircuited(self):
@@ -751,6 +796,5 @@ class TestDirectDelivery:
             user_id="u1",
             context_id="ctx",
             content="Hello",
-            metadata={},
         )
-        assert not (msg.metadata or {}).get("_direct_delivery")
+        assert msg.to == "agent"

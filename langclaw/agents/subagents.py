@@ -3,9 +3,9 @@ Channel-routed subagent builder.
 
 Wraps a standard LangGraph agent in a ``CompiledSubAgent``-compatible
 runnable that publishes its final output directly to the message bus.
-The ``GatewayManager`` detects the ``_direct_delivery`` flag on the
-resulting ``InboundMessage`` and sends it straight to the channel
-without re-running the agent pipeline.
+The ``GatewayManager`` routes ``InboundMessage`` objects with
+``to="channel"`` straight to the channel without re-running the agent
+pipeline.
 
 The main agent receives a short confirmation instead of the full
 subagent output, keeping its context window clean.
@@ -20,6 +20,7 @@ from langchain_core.runnables import RunnableLambda
 from loguru import logger
 
 from langclaw.bus.base import InboundMessage
+from langclaw.context import LangclawContext
 from langclaw.middleware.channel_context import ChannelContextMiddleware
 from langclaw.middleware.permissions import build_tool_permission_middleware
 
@@ -75,9 +76,9 @@ def _make_run_and_publish(
                         context_id=context_id,
                         content=content,
                         chat_id=chat_id,
+                        origin="subagent",
+                        to="channel",
                         metadata={
-                            "source": "subagent",
-                            "_direct_delivery": True,
                             "subagent_name": spec_name,
                         },
                     )
@@ -104,6 +105,7 @@ def build_channel_routed_subagent(
     tools: list[Any],
     model: str | BaseChatModel,
     config: LangclawConfig,
+    context_schema: type[LangclawContext],
 ) -> dict[str, Any]:
     """Build a channel-routed subagent dict.
 
@@ -112,8 +114,8 @@ def build_channel_routed_subagent(
     The returned runnable:
     1. Executes the inner agent to completion.
     2. Publishes the final text as an ``InboundMessage`` with
-       ``metadata["_direct_delivery"] = True`` so the gateway delivers
-       it straight to the originating channel.
+       ``origin="subagent"`` and ``to="channel"`` so the gateway
+       delivers it straight to the originating channel.
     3. Returns a short confirmation message to the main agent.
 
     Args:
@@ -122,6 +124,7 @@ def build_channel_routed_subagent(
         tools:  Resolved tool objects for this subagent.
         model:  LLM for this subagent (resolved model or string).
         config: Loaded ``LangclawConfig`` (for middleware construction).
+        context_schema: Context schema to use for the subagent.
 
     Returns:
         A dict with ``name``, ``description``, and ``runnable`` keys
@@ -141,6 +144,7 @@ def build_channel_routed_subagent(
         tools=tools,
         middleware=sa_middleware,
         name=spec["name"],
+        context_schema=context_schema,
     )
 
     run_fn = _make_run_and_publish(

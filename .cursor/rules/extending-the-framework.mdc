@@ -20,6 +20,7 @@ Extend `BaseChannel` in `langclaw/gateway/base.py`. See `telegram.py`, `discord.
 
 - Implement `start()`, `stop()`, `send()`, and `send_ai_message()`
 - The channel publishes `InboundMessage` to the bus — it never talks to the agent directly
+- Set `origin="channel"` when publishing user messages to the bus
 - Add the optional dependency to `pyproject.toml` under `[project.optional-dependencies]`
 - Guard the import in `Langclaw._build_all_channels()` with `try/except ImportError`
 

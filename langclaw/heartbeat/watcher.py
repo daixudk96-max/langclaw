@@ -11,7 +11,8 @@ Example use-cases:
   - Custom event streams
 
 All fired messages flow through the same bus → agent pipeline as channel
-and cron messages. ``metadata["source"] == "heartbeat"`` identifies them.
+and cron messages. Heartbeat messages have ``origin="heartbeat"`` to
+identify their source.
 """
 
 from __future__ import annotations
@@ -161,8 +162,8 @@ class HeartbeatManager:
                         context_id=target.context_id,
                         chat_id=target.chat_id,
                         content=result,
+                        origin="heartbeat",
                         metadata={
-                            "source": "heartbeat",
                             "condition": condition.name,
                         },
                     )

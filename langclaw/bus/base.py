@@ -20,7 +20,15 @@ from dataclasses import dataclass, field
 
 @dataclass
 class InboundMessage:
-    """A message arriving from any source heading into the agent."""
+    """A message arriving from any source heading into the agent.
+
+    Routing fields:
+      - ``origin``: Who produced the message. Used to construct the appropriate
+        LangChain message type when feeding the agent.
+      - ``to``: Where to route the message (``"agent"`` or ``"channel"``).
+        Messages with ``to="channel"`` bypass the agent and are delivered
+        directly to the originating channel.
+    """
 
     channel: str
     """Originating channel name: ``"telegram"``, ``"discord"``, ``"cron"``, etc."""
@@ -41,6 +49,25 @@ class InboundMessage:
     ``BaseChannel.send()`` falls back to ``user_id``.
     """
 
+    origin: str = "user"
+    """
+    Who produced the message. Common values:
+      - ``"user"``: End-user input from a channel (default).
+      - ``"channel"``: Alias for user input via a channel.
+      - ``"cron"``: Scheduled job.
+      - ``"heartbeat"``: Event-driven condition trigger.
+      - ``"subagent"``: Output from a subagent.
+
+    This field supersedes ``metadata["source"]`` for new code.
+    """
+
+    to: str = "agent"
+    """
+    Where to route the message:
+      - ``"agent"``: Feed to the main agent pipeline (default).
+      - ``"channel"``: Deliver directly to the channel, bypassing the agent.
+    """
+
     attachments: list[dict] = field(default_factory=list)
     """Optional list of attachment descriptors (type, url, data)."""
 
@@ -48,7 +75,6 @@ class InboundMessage:
     """
     Freeform metadata passed through to the agent config.
     Built-in keys:
-      - ``"source"``: ``"channel"`` | ``"cron"`` | ``"heartbeat"``
       - ``"reply_to"``: message ID for threading (platform-specific)
     """
 

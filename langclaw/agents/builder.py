@@ -78,6 +78,7 @@ def _build_deepagent_subagents(
     specs: list[dict[str, Any]],
     all_tools: list[Any],
     config: LangclawConfig,
+    context_schema: type[LangclawContext],
 ) -> list[dict[str, Any]]:
     """Convert langclaw subagent specs to deepagents ``SubAgent`` dicts.
 
@@ -102,6 +103,7 @@ def _build_deepagent_subagents(
             "description": spec["description"],
             "system_prompt": spec["system_prompt"],
             "middleware": sa_middleware,
+            "context_schema": context_schema,
         }
         if sa_tools is not None:
             sa["tools"] = sa_tools
@@ -161,6 +163,7 @@ def create_claw_agent(
     system_prompt: str | None = None,
     bus: BaseMessageBus | None = None,
     model: BaseChatModel | None = None,
+    context_schema: type[LangclawContext] | None = None,
 ) -> CompiledStateGraph:
     """
     Create a langclaw deep agent backed by ``deepagents.create_deep_agent``.
@@ -199,7 +202,8 @@ def create_claw_agent(
         bus:             Running ``BaseMessageBus`` — required when any
                          subagent uses ``output="channel"`` (Phase 2).
         model:           Pre-built chat model. If omitted, resolved from config.
-
+        context_schema:  Custom context schema to use for the agent. If omitted,
+                         uses the default LangclawContext.
     Returns:
         A compiled LangGraph runnable (CompiledGraph) ready for ``.invoke``
         / ``.astream``.
@@ -261,7 +265,8 @@ def create_claw_agent(
         ]
     )
 
-    context_schema = LangclawContext
+    # Default to LangclawContext if not provided
+    context_schema = context_schema or LangclawContext
 
     # --- Subagents -----------------------------------------------------------
     # Partition by shape:
@@ -275,7 +280,9 @@ def create_claw_agent(
     resolved_subagents: list[dict[str, Any]] = list(compiled_specs)
 
     if managed_specs:
-        resolved_subagents.extend(_build_deepagent_subagents(managed_specs, tools, config))
+        resolved_subagents.extend(
+            _build_deepagent_subagents(managed_specs, tools, config, context_schema)
+        )
 
         channel_routed = [s for s in managed_specs if s.get("output") == "channel"]
         if channel_routed:
@@ -297,6 +304,7 @@ def create_claw_agent(
                         tools=sa_tools or tools,
                         model=spec.get("model") or resolved_model,
                         config=config,
+                        context_schema=context_schema,
                     )
                 )
 

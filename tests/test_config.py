@@ -146,10 +146,11 @@ def test_inbound_message_dataclass():
         user_id="123",
         context_id="456",
         content="hello",
-        metadata={"source": "channel"},
+        origin="channel",
     )
     assert msg.channel == "telegram"
-    assert msg.metadata["source"] == "channel"
+    assert msg.origin == "channel"
+    assert msg.to == "agent"
     assert msg.attachments == []
 
 
@@ -279,7 +280,7 @@ async def test_heartbeat_manager_fires(monkeypatch):
             break
 
     assert len(fired) == 1
-    assert fired[0].metadata["source"] == "heartbeat"
+    assert fired[0].origin == "heartbeat"
     assert fired[0].content == "test heartbeat triggered"
 
 
