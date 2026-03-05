@@ -61,8 +61,10 @@ def create_api_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    from examples.rentagent_vn.api.routes.campaigns import router
+    from examples.rentagent_vn.api.routes.campaigns import router as campaigns_router
+    from examples.rentagent_vn.api.routes.zalo import router as zalo_router
 
-    app.include_router(router)
+    app.include_router(campaigns_router)
+    app.include_router(zalo_router)
 
     return app

@@ -128,3 +128,49 @@ class StatsResponse(BaseModel):
     by_stage: dict[str, int] = Field(default_factory=dict)
     new_today: int = 0
     total_scans: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Zalo
+# ---------------------------------------------------------------------------
+
+
+class ZaloAuthCookieRequest(BaseModel):
+    cookie: str
+    imei: str
+    user_agent: str
+
+
+class ZaloStatusResponse(BaseModel):
+    connected: bool
+    phone_number: str | None = None
+    error: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Outreach
+# ---------------------------------------------------------------------------
+
+
+class DraftOutreachRequest(BaseModel):
+    custom_notes: str | None = None
+
+
+class SendOutreachRequest(BaseModel):
+    message_id: str
+    final_text: str | None = None
+
+
+class OutreachMessageResponse(BaseModel):
+    id: str
+    listing_id: str
+    campaign_id: str
+    draft_text: str
+    final_text: str | None = None
+    status: str
+    landlord_phone: str | None = None
+    zalo_user_id: str | None = None
+    sent_at: str | None = None
+    error_message: str | None = None
+    created_at: str
+    updated_at: str
