@@ -36,3 +36,7 @@ workspace/**
 .pytest_cache/
 .coverage
 htmlcov/
+
+# SQLite temp files
+*.db-shm
+*.db-wal
