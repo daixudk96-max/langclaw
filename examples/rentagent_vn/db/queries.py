@@ -429,3 +429,82 @@ async def get_campaign_stats(campaign_id: str) -> dict[str, Any]:
         "new_today": new_today,
         "total_scans": total_scans,
     }
+
+
+# ---------------------------------------------------------------------------
+# Outreach Messages
+# ---------------------------------------------------------------------------
+
+
+async def create_outreach_message(
+    listing_id: str,
+    campaign_id: str,
+    draft_text: str,
+    landlord_phone: str | None = None,
+) -> dict[str, Any]:
+    """Create a new outreach message draft."""
+    db = await get_db()
+    mid = _gen_id()
+    now = _now()
+    await db.execute(
+        """INSERT INTO outreach_messages
+           (id, listing_id, campaign_id, draft_text, landlord_phone, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'drafted', ?, ?)""",
+        (mid, listing_id, campaign_id, draft_text, landlord_phone, now, now),
+    )
+    await db.commit()
+    return await get_outreach_message(mid)  # type: ignore[return-value]
+
+
+async def get_outreach_message(message_id: str) -> dict[str, Any] | None:
+    """Get a single outreach message by ID."""
+    db = await get_db()
+    cursor = await db.execute("SELECT * FROM outreach_messages WHERE id = ?", (message_id,))
+    row = await cursor.fetchone()
+    return _row_to_dict(row) if row else None
+
+
+async def get_outreach_for_listing(listing_id: str) -> list[dict[str, Any]]:
+    """Get all outreach messages for a listing."""
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT * FROM outreach_messages WHERE listing_id = ? ORDER BY created_at DESC",
+        (listing_id,),
+    )
+    rows = await cursor.fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+async def update_outreach_status(
+    message_id: str,
+    status: str,
+    final_text: str | None = None,
+    zalo_user_id: str | None = None,
+    error_message: str | None = None,
+) -> dict[str, Any] | None:
+    """Update outreach message status and related fields."""
+    db = await get_db()
+    now = _now()
+    sets = ["status = ?", "updated_at = ?"]
+    vals: list[Any] = [status, now]
+
+    if final_text is not None:
+        sets.append("final_text = ?")
+        vals.append(final_text)
+
+    if zalo_user_id is not None:
+        sets.append("zalo_user_id = ?")
+        vals.append(zalo_user_id)
+
+    if error_message is not None:
+        sets.append("error_message = ?")
+        vals.append(error_message)
+
+    if status == "sent":
+        sets.append("sent_at = ?")
+        vals.append(now)
+
+    vals.append(message_id)
+    await db.execute(f"UPDATE outreach_messages SET {', '.join(sets)} WHERE id = ?", vals)
+    await db.commit()
+    return await get_outreach_message(message_id)

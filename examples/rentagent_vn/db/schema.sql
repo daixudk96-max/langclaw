@@ -67,7 +67,24 @@ CREATE TABLE IF NOT EXISTS activity_log (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS outreach_messages (
+  id TEXT PRIMARY KEY DEFAULT (hex(randomblob(6))),
+  listing_id TEXT NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  draft_text TEXT NOT NULL,
+  final_text TEXT,
+  status TEXT NOT NULL DEFAULT 'drafted',
+  landlord_phone TEXT,
+  zalo_user_id TEXT,
+  sent_at TEXT,
+  error_message TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_listings_campaign_stage ON listings(campaign_id, stage);
 CREATE INDEX IF NOT EXISTS idx_listings_fingerprint ON listings(campaign_id, fingerprint);
 CREATE INDEX IF NOT EXISTS idx_scans_campaign ON scans(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_activity_campaign ON activity_log(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_outreach_listing ON outreach_messages(listing_id);
+CREATE INDEX IF NOT EXISTS idx_outreach_campaign ON outreach_messages(campaign_id);
