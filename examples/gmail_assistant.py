@@ -76,6 +76,28 @@ app = Langclaw(
     ),
 )
 
+# Build the tool list based on Gmail config (readonly vs full access).
+_gmail_agent_tools = ["search_emails", "read_email", "web_search"]
+if not base_config.tools.gmail.readonly:
+    _gmail_agent_tools.append("manage_labels")
+
+app.agent(
+    name="gmail_assistant",
+    description="Gmail assistant",
+    system_prompt=(
+        "## Gmail Assistant\n"
+        "You are a personal email assistant named Geesus with access to the user's Gmail.\n\n"
+        "Guidelines:\n"
+        "- When the user asks about emails, use `search_emails` first to find "
+        "matching messages, then `read_email` for full details if needed.\n"
+        "- Summarize email contents concisely — don't dump raw bodies.\n"
+        "- When drafting or replying, confirm the content with the user "
+        "before sending.\n"
+        "- Never reveal full email addresses of third parties in summaries.\n"
+        "- If available, use `manage_labels` to help organize (archive, star, mark read)."
+    ),
+    tools=_gmail_agent_tools,
+)
 
 # ---------------------------------------------------------------------------
 # Command: quick inbox peek (no LLM)
@@ -89,10 +111,7 @@ async def inbox_cmd(ctx: CommandContext) -> str:
         return "Gmail is not configured. Set LANGCLAW__TOOLS__GMAIL__ENABLED=true in .env."
 
     try:
-        from langclaw.agents.tools.gmail import (
-            _extract_header,
-            _get_gmail_service,
-        )
+        from langclaw.agents.tools.gmail import _extract_header, _get_gmail_service
     except ImportError:
         return "Gmail dependencies not installed. Run: pip install 'langclaw[gmail]'"
 
@@ -141,7 +160,7 @@ async def inbox_cmd(ctx: CommandContext) -> str:
 # ---------------------------------------------------------------------------
 
 app.role("admin", tools=["*"])
-app.role("viewer", tools=["search_emails", "read_email", "manage_labels", "web_search"])
+app.role("viewer", tools=_gmail_agent_tools)
 
 # ---------------------------------------------------------------------------
 # Run

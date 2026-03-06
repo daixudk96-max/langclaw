@@ -28,6 +28,9 @@ uv run pre-commit run --all-files  # Full pre-commit suite
 | CLI commands | `langclaw/cli/app.py` (Typer) |
 | Agent construction | `langclaw/agents/builder.py` |
 | Gateway orchestration | `langclaw/gateway/manager.py` |
+| Register named agents | `langclaw/app.py` (`app.agent()`) |
+| Agent routing logic | `langclaw/gateway/manager.py` (`_resolve_agent_name`) |
+| Active agent persistence | `langclaw/session/manager.py` (`get_active_agent` / `set_active_agent`) |
 
 ## Extension Patterns
 
@@ -102,19 +105,66 @@ class MyCheckpointer(BaseCheckpointerBackend):
 
 Register in `checkpointer/__init__.py:make_checkpointer_backend()`.
 
+### Named Agents (multi-agent switching)
+
+Register independent named agents on the app. Each gets its own LangGraph thread
+(`context_id = "agent:<name>"`) so conversation history never bleeds across agents.
+
+```python
+app.agent(
+    "researcher",
+    description="Deep research with web tools",
+    system_prompt="You are a meticulous researcher. Always cite sources.",
+    tools=[web_search, web_fetch],          # None → inherits config-driven tools
+    model="openai:gpt-4.1",                 # None → inherits default model
+)
+```
+
+Users switch via the built-in `/switch` command (registered automatically):
+
+```
+/switch researcher   → activate researcher agent (isolated thread)
+/switch default      → return to main agent
+/switch              → list all agents with active marker
+```
+
+**`_resolve_agent_name` priority order** (in `gateway/manager.py`):
+1. `msg.metadata["agent_name"]` — stamped by cron at schedule time (deterministic, restart-safe)
+2. Phase 2 `agent_resolver` hook — auto-routing (not yet implemented; stub in `_resolve_agent_name`)
+3. `SessionManager.get_active_agent()` — set by `/switch` (per user, in-memory)
+4. `"default"` — fallback
+
+**Cron + named agents:** The cron tool derives `agent_name` from `ctx.context_id`
+(set to `"agent:<name>"` when a named agent is active) at schedule time and stamps it
+into the job's `fire_kwargs`. On fire, it appears in `InboundMessage.metadata["agent_name"]`
+and takes priority over the user's current interactive session. Old persisted jobs without
+the field default to `""` and fall through to the next priority level — fully backward compatible.
+
+**Adding Phase 2 auto-routing:** Uncomment the `agent_resolver` stub in
+`GatewayManager._resolve_agent_name` and wire a `Callable[[InboundMessage], Awaitable[str | None]]`
+through `GatewayManager.__init__` and `Langclaw._run_async`.
+
 ## Message Flow
 
 ```
 User message flow:
-Channel → InboundMessage → Bus → GatewayManager → Middleware → Agent → OutboundMessage → Channel
+Channel → InboundMessage → Bus → GatewayManager._handle()
+  → _resolve_agent_name()          # pick agent (metadata > session > default)
+  → SessionManager.get_config()    # get/create LangGraph thread
+  → active_agent.astream()         # run chosen agent
+  → OutboundMessage → Channel
 
 Command flow (bypasses LLM):
 Channel → /command → CommandRouter → instant response
+
+Cron flow:
+APScheduler → _fire_job() → InboundMessage(origin="cron", metadata={agent_name}) → Bus → same as user flow
 ```
 
 Key routing fields on `InboundMessage`:
 - `origin`: `"user"` | `"cron"` | `"heartbeat"` | `"subagent"`
 - `to`: `"agent"` (default) | `"channel"` (bypass agent)
+- `metadata["agent_name"]`: explicit agent target (stamped by cron at schedule time)
 
 ## Common Pitfalls
 
@@ -157,10 +207,14 @@ logger.error(f"Failed to connect: {exc}")
 
 ### Commands vs Tools
 
-- **Commands** (`/start`, `/reset`, `/help`): Fast system ops, bypass bus and LLM entirely
+- **Commands** (`/start`, `/reset`, `/help`, `/switch`): Fast system ops, bypass bus and LLM entirely
 - **Tools**: LLM-invoked functions, go through full middleware pipeline
 
 Don't implement user-facing quick actions as tools — use `@app.command()`.
+
+`/switch` is registered automatically by `GatewayManager._setup_switch_command()` as a closure
+when at least one named agent exists. It calls `SessionManager.set_active_agent()` and requires
+no changes to `gateway/commands.py`.
 
 ## Testing
 

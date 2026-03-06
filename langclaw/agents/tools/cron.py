@@ -140,6 +140,11 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
         user_id = ctx.user_id if ctx else ""
         context_id = ctx.context_id if ctx else "default"
         chat_id = ctx.chat_id if ctx else user_id
+        # Derive agent_name from current context_id — set to "agent:<name>" by the
+        # gateway when a named agent is active. Captured here before effective_context_id
+        # is computed so task-type jobs (which get a new isolated context_id) still
+        # record the correct agent.
+        agent_name = context_id.removeprefix("agent:") if context_id.startswith("agent:") else ""
 
         # ── add ────────────────────────────────────────────────────────────
         if action == "add":
@@ -170,6 +175,7 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
                     cron_expr=cron_expr,
                     every_seconds=every_seconds,
                     user_role=user_role,
+                    agent_name=agent_name,
                 )
             except Exception as exc:
                 import traceback

@@ -220,11 +220,31 @@ def create_claw_agent(
         to_virtual_path(s, config.agents.workspace_dir) for s in (extra_skills or [])
     ]
 
-    tools: list[Any] = list(extra_tools or [])
-    tools += build_web_tools(config)
-    tools += build_gmail_tools(config)
+    # Build all available built-in tools first.
+    builtin_tools: list[Any] = []
+    builtin_tools += build_web_tools(config)
+    builtin_tools += build_gmail_tools(config)
     if cron_manager is not None:
-        tools += build_cron_tools(config, cron_manager)
+        builtin_tools += build_cron_tools(config, cron_manager)
+
+    # Process extra_tools: resolve string names to actual tools, keep tool objects as-is.
+    extra_tool_objects: list[Any] = []
+    extra_tool_names: list[str] = []
+    for item in extra_tools or []:
+        if isinstance(item, str):
+            extra_tool_names.append(item)
+        else:
+            extra_tool_objects.append(item)
+
+    # If extra_tools specifies tool names, select only those from built-in tools.
+    # Otherwise, use all built-in tools plus any extra tool objects.
+    if extra_tool_names:
+        tools = _resolve_tools_by_name(extra_tool_names, builtin_tools + extra_tool_objects)
+        if tools is None:
+            tools = []
+        tools += extra_tool_objects
+    else:
+        tools = builtin_tools + extra_tool_objects
 
     base_prompt = config.agents.agents_md_file.read_text("utf-8")
     if system_prompt:

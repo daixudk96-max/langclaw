@@ -75,6 +75,7 @@ async def _fire_job(
     job_name: str,
     schedule: str = "",
     user_role: str = "",
+    agent_name: str = "",
 ) -> None:
     """APScheduler job function — must stay at module level to be picklable.
 
@@ -108,6 +109,8 @@ async def _fire_job(
     }
     if user_role:
         metadata["user_role"] = user_role
+    if agent_name:
+        metadata["agent_name"] = agent_name
     await manager._bus.publish(
         InboundMessage(
             channel=channel,
@@ -137,6 +140,8 @@ class CronJob:
     chat_id: str
     schedule: str
     """Either a cron expression (``"0 9 * * *"``) or ``"every:<seconds>"``."""
+    agent_name: str = ""
+    """Named agent that should handle this job when it fires. Empty string means default agent."""
 
 
 def _trigger_to_str(trigger: object) -> str:
@@ -191,6 +196,7 @@ def _schedule_to_cronjob(schedule: Schedule) -> CronJob | None:
             context_id=kwargs.get("context_id", "default"),
             chat_id=kwargs.get("chat_id", ""),
             schedule=kwargs.get("schedule") or _trigger_to_str(schedule.trigger),
+            agent_name=kwargs.get("agent_name", ""),
         )
     except Exception:
         logger.debug("Could not reconstruct CronJob from schedule %s", schedule.id, exc_info=True)
@@ -277,6 +283,7 @@ class CronManager:
         cron_expr: str | None = None,
         every_seconds: int | None = None,
         user_role: str = "",
+        agent_name: str = "",
     ) -> str:
         """
         Schedule a job that fires a message into the agent pipeline.
@@ -292,6 +299,7 @@ class CronManager:
             every_seconds: Interval in seconds (alternative to cron_expr).
             user_role:     RBAC role of the scheduling user (persisted so the
                            fired job runs with the same permissions).
+            agent_name:    Agent name to handle the job.
 
         Returns:
             A stable job ID string.
@@ -323,6 +331,7 @@ class CronManager:
             context_id=context_id,
             chat_id=chat_id,
             schedule=cron_expr or f"every:{every_seconds}s",
+            agent_name=agent_name,
         )
         # All kwargs are plain strings — safe to pickle for persistent stores.
         # The bus is looked up from _MANAGERS at fire time via manager_id.
@@ -340,6 +349,8 @@ class CronManager:
         }
         if user_role:
             fire_kwargs["user_role"] = user_role
+        if agent_name:
+            fire_kwargs["agent_name"] = agent_name
         await self._scheduler.add_schedule(
             _fire_job,
             trigger,
