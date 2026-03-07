@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import uuid4
@@ -29,6 +30,10 @@ ErrorCallback = Callable[
     [Langclaw, str, str, str, str, dict[str, Any]],
     Awaitable[None],
 ]
+StreamingUrlCallback = Callable[
+    [Langclaw, str, str, str, str, dict[str, Any]],
+    Awaitable[None],
+]
 
 
 class BackgroundResearchRunner:
@@ -43,12 +48,14 @@ class BackgroundResearchRunner:
         progress_callback: ProgressCallback | None = None,
         result_callback: ResultCallback | None = None,
         error_callback: ErrorCallback | None = None,
+        streaming_url_callback: StreamingUrlCallback | None = None,
     ) -> None:
         self._app = app
         self._tinyfish_client = tinyfish_client
         self._progress_callback = progress_callback
         self._result_callback = result_callback
         self._error_callback = error_callback
+        self._streaming_url_callback = streaming_url_callback
         self._tasks: dict[str, asyncio.Task[None]] = {}
 
     async def start(
@@ -104,8 +111,6 @@ class BackgroundResearchRunner:
             )
 
             # 2. Publish started event
-            import time
-
             research_broker.publish(
                 campaign_id,
                 ResearchEvent(
@@ -124,7 +129,16 @@ class BackgroundResearchRunner:
                 "https://maps.google.com",
                 goal,
             ):
-                if event.type == "PROGRESS" and self._progress_callback:
+                if event.type == "STREAMING_URL" and self._streaming_url_callback:
+                    await self._streaming_url_callback(
+                        self._app,
+                        research_id,
+                        listing_id,
+                        campaign_id,
+                        event.streaming_url or "",
+                        channel_context,
+                    )
+                elif event.type == "PROGRESS" and self._progress_callback:
                     await self._progress_callback(
                         self._app,
                         research_id,

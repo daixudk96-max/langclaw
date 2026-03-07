@@ -13,6 +13,34 @@ from langclaw import Langclaw
 from langclaw.bus.base import InboundMessage
 
 
+async def research_streaming_url_callback(
+    app: Langclaw,
+    research_id: str,
+    listing_id: str,
+    campaign_id: str,
+    streaming_url: str,
+    channel_context: dict[str, Any],
+) -> None:
+    """Called when TinyFish provides a streaming URL for live browser viewing."""
+    logger.info(
+        "Research {} streaming URL received: {}",
+        research_id,
+        streaming_url,
+    )
+    research_broker.publish(
+        campaign_id,
+        ResearchEvent(
+            type="streaming_url",
+            research_id=research_id,
+            data={
+                "listing_id": listing_id,
+                "browser_url": streaming_url,
+            },
+            timestamp=time.monotonic(),
+        ),
+    )
+
+
 async def research_progress_callback(
     app: Langclaw,
     research_id: str,

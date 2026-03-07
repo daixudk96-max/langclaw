@@ -10,6 +10,7 @@ from examples.rentagent_vn.research_callbacks import (
     research_error_callback,
     research_progress_callback,
     research_result_callback,
+    research_streaming_url_callback,
 )
 from examples.rentagent_vn.research_runner import BackgroundResearchRunner
 from examples.rentagent_vn.runner import BackgroundScrapeRunner
@@ -53,6 +54,7 @@ research_runner = BackgroundResearchRunner(
     progress_callback=research_progress_callback,
     result_callback=research_result_callback,
     error_callback=research_error_callback,
+    streaming_url_callback=research_streaming_url_callback,
 )
 
 app.set_context_defaults(
