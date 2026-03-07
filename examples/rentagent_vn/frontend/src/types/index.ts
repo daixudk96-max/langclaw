@@ -4,6 +4,7 @@
 
 export type PipelineStage =
   | "new"
+  | "researching"
   | "contacted"
   | "viewing"
   | "viewed"
@@ -16,6 +17,7 @@ export const PIPELINE_STAGES: {
   color: string;
 }[] = [
   { key: "new", label: "Mới", color: "bg-blue-500" },
+  { key: "researching", label: "Đang khảo sát", color: "bg-teal-500" },
   { key: "contacted", label: "Đã liên hệ", color: "bg-yellow-500" },
   { key: "viewing", label: "Hẹn xem", color: "bg-orange-500" },
   { key: "viewed", label: "Đã xem", color: "bg-purple-500" },
@@ -66,6 +68,7 @@ export interface Listing {
   skip_reason: string | null;
   user_notes: string | null;
   scan_id: string | null;
+  research_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -249,3 +252,130 @@ export const OUTREACH_STATUS_LABELS: Record<OutreachStatus, string> = {
   failed: "Lỗi",
   replied: "Đã phản hồi",
 };
+
+// ---------------------------------------------------------------------------
+// Area Research
+// ---------------------------------------------------------------------------
+
+export type ResearchStatus = "queued" | "running" | "done" | "failed";
+
+export interface CriterionDetail {
+  key: string;
+  value: string;
+}
+
+export interface CriterionScore {
+  criterion_key: string;
+  score: number;
+  label: string;
+  highlights: string[];
+  details: CriterionDetail[];
+  walking_distance?: boolean;
+}
+
+export interface ResearchScores {
+  overall: number;
+  criteria: CriterionScore[];
+}
+
+export interface AreaResearch {
+  id: string;
+  listing_id: string;
+  campaign_id: string;
+  status: ResearchStatus;
+  criteria: string[];
+  scores: ResearchScores | null;
+  result: Record<string, unknown> | null;
+  verdict: string | null;
+  overall_score: number | null;
+  street_view_urls: string[];
+  auto_outreach_enabled: boolean;
+  auto_outreach_threshold: number | null;
+  auto_outreach_conditions: Record<string, number> | null;
+  auto_outreach_triggered: boolean;
+  tinyfish_job_id: string | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResearchCriteriaOption {
+  key: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+}
+
+export interface AutoOutreachConfig {
+  enabled: boolean;
+  threshold: number;
+  must_pass: Record<string, number>;
+  message_template: string;
+}
+
+export const DEFAULT_CRITERIA: ResearchCriteriaOption[] = [
+  {
+    key: "food_shopping",
+    label: "Ăn uống & Mua sắm",
+    description: "Nhà hàng, siêu thị, cửa hàng tiện lợi",
+    enabled: true,
+  },
+  {
+    key: "healthcare",
+    label: "Y tế",
+    description: "Bệnh viện, phòng khám, nhà thuốc",
+    enabled: true,
+  },
+  {
+    key: "education_family",
+    label: "Giáo dục & Gia đình",
+    description: "Trường học, nhà trẻ, mầm non",
+    enabled: true,
+  },
+  {
+    key: "transportation",
+    label: "Giao thông",
+    description: "Trạm xe buýt, metro, đường lớn",
+    enabled: true,
+  },
+  {
+    key: "entertainment_sports",
+    label: "Giải trí & Thể thao",
+    description: "Phòng gym, công viên, rạp chiếu phim",
+    enabled: true,
+  },
+  {
+    key: "street_atmosphere",
+    label: "Đường phố & Vệ sinh",
+    description: "Đánh giá qua Street View: đường, vệ sinh, cây xanh",
+    enabled: true,
+  },
+  {
+    key: "security",
+    label: "An ninh",
+    description: "Cổng, camera, bảo vệ, ánh sáng",
+    enabled: true,
+  },
+];
+
+export type ResearchSSEEventType =
+  | "started"
+  | "progress"
+  | "completed"
+  | "failed"
+  | "done";
+
+export interface ResearchSSEEvent {
+  type: ResearchSSEEventType;
+  research_id: string | null;
+  timestamp: number;
+  listing_id?: string;
+  address?: string;
+  step?: string;
+  detail?: string;
+  overall_score?: number;
+  verdict?: string;
+  error?: string;
+}

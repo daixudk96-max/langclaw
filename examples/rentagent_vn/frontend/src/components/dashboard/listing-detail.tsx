@@ -30,8 +30,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useListingStore } from "@/stores/listing-store";
+import { useResearchStore } from "@/stores/research-store";
 import { SkipDialog } from "./skip-dialog";
 import { OutreachDialog } from "./outreach-dialog";
+import { ResearchResults } from "./research-results";
+import { ResearchProgress } from "./research-progress";
 import { ZaloSettingsDialog } from "@/components/zalo/zalo-settings-dialog";
 import { PIPELINE_STAGES, OUTREACH_STATUS_LABELS } from "@/types";
 import type { Listing, PipelineStage, OutreachMessage } from "@/types";
@@ -49,6 +52,7 @@ export function ListingDetail({
   onClose,
 }: ListingDetailProps) {
   const { updateStage, updateNotes, fetchListings } = useListingStore();
+  const { researching, researchByListing } = useResearchStore();
   const [notes, setNotes] = useState(listing.user_notes || "");
   const [skipOpen, setSkipOpen] = useState(false);
   const [outreachOpen, setOutreachOpen] = useState(false);
@@ -98,6 +102,34 @@ export function ListingDetail({
                 className="w-full h-48 object-cover rounded-lg bg-muted"
               />
             )}
+
+            {/* Research results (if available) */}
+            {(() => {
+              const rid = listing.research_id || researchByListing[listing.id];
+              const research = rid ? researching[rid] : undefined;
+              if (research && research.status === "done" && research.scores) {
+                return (
+                  <>
+                    <div className="rounded-lg border border-teal-200 bg-teal-50/30 p-4">
+                      <ResearchResults
+                        research={research}
+                        campaignId={campaignId}
+                        listingId={listing.id}
+                      />
+                    </div>
+                    <Separator />
+                  </>
+                );
+              }
+              if (research && (research.status === "running" || research.status === "queued")) {
+                return (
+                  <div className="rounded-lg border p-3">
+                    <ResearchProgress research={research} />
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Price */}
             <div>

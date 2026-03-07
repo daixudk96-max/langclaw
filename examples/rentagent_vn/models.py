@@ -89,8 +89,7 @@ _NULL_PLACEHOLDERS = frozenset(
 # Regex that matches Vietnamese null placeholders with extra detail in
 # parentheses, e.g. "Không đề cập (Liên hệ để biết thêm chi tiết)".
 _NULL_PATTERN = re.compile(
-    r"^(không đề cập|khong de cap|không rõ|chưa rõ|liên hệ|lien he)"
-    r"(\s*\(.*\))?$",
+    r"^(không đề cập|khong de cap|không rõ|chưa rõ|liên hệ|lien he)" r"(\s*\(.*\))?$",
     re.IGNORECASE,
 )
 
@@ -184,6 +183,89 @@ class TinyFishListingResponse(BaseModel):
             return cls(listings=cls._parse_items([raw]))
 
         return cls()
+
+
+# ---------------------------------------------------------------------------
+# Area Research models
+# ---------------------------------------------------------------------------
+
+RESEARCH_CRITERIA_KEYS = [
+    "food_shopping",
+    "healthcare",
+    "education_family",
+    "transportation",
+    "entertainment_sports",
+    "street_atmosphere",
+    "security",
+]
+
+RESEARCH_CRITERIA_LABELS: dict[str, str] = {
+    "food_shopping": "Ăn uống & Mua sắm",
+    "healthcare": "Y tế",
+    "education_family": "Giáo dục & Gia đình",
+    "transportation": "Giao thông",
+    "entertainment_sports": "Giải trí & Thể thao",
+    "street_atmosphere": "Đường phố & Vệ sinh",
+    "security": "An ninh",
+}
+
+
+class AutoOutreachConfig(BaseModel):
+    """Configuration for auto-outreach after research."""
+
+    enabled: bool = False
+    threshold: float = 7.0
+    must_pass: dict[str, float] = Field(default_factory=dict)
+    message_template: str | None = None
+
+
+class ResearchConfig(BaseModel):
+    """Full research job configuration."""
+
+    criteria: list[str] = Field(default_factory=lambda: list(RESEARCH_CRITERIA_KEYS))
+    auto_outreach: AutoOutreachConfig = Field(default_factory=AutoOutreachConfig)
+
+
+class CriterionDetail(BaseModel):
+    """A key-value detail for a criterion (replaces dict[str, str] for OpenAI compatibility)."""
+
+    key: str
+    value: str
+
+
+class CriterionScore(BaseModel):
+    """Score and details for a single research criterion."""
+
+    criterion_key: str  # e.g. "food_shopping", "healthcare"
+    score: int
+    label: str
+    highlights: list[str]
+    details: list[CriterionDetail]  # OpenAI strict mode requires list, not dict
+    walking_distance: bool | None = None
+
+
+class ResearchScores(BaseModel):
+    """Complete scoring result from area research."""
+
+    overall: float
+    criteria: list[CriterionScore]  # OpenAI strict mode requires list, not dict
+
+    verdict: str
+
+
+class ResearchResult(BaseModel):
+    """Full structured result from area research."""
+
+    address: str
+    verdict: str
+    scores: ResearchScores
+    street_view_urls: list[str] | None = None
+    overall_score: float
+    verdict: str
+    criteria: dict[str, CriterionScore]
+    highlights: list[str]
+    details: dict[str, str]
+    walking_distance: bool | None = None
 
 
 class ScrapeInput(BaseModel):

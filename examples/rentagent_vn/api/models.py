@@ -76,6 +76,7 @@ class ListingResponse(BaseModel):
     skip_reason: str | None = None
     user_notes: str | None = None
     scan_id: str | None = None
+    research_id: str | None = None
     created_at: str
     updated_at: str
 
@@ -172,5 +173,66 @@ class OutreachMessageResponse(BaseModel):
     zalo_user_id: str | None = None
     sent_at: str | None = None
     error_message: str | None = None
+    created_at: str
+    updated_at: str
+
+
+# ---------------------------------------------------------------------------
+# Area Research
+# ---------------------------------------------------------------------------
+
+
+class AutoOutreachConfigRequest(BaseModel):
+    enabled: bool = False
+    threshold: float = 7.0
+    must_pass: dict[str, float] = Field(default_factory=dict)
+    message_template: str | None = None
+
+
+class TriggerResearchRequest(BaseModel):
+    """Request to start area research for one or more listings."""
+
+    listing_ids: list[str]
+    criteria: list[str] = Field(
+        default_factory=lambda: [
+            "food_shopping",
+            "healthcare",
+            "education_family",
+            "transportation",
+            "entertainment_sports",
+            "street_atmosphere",
+            "security",
+        ]
+    )
+    auto_outreach: AutoOutreachConfigRequest = Field(
+        default_factory=AutoOutreachConfigRequest,
+    )
+
+
+class TriggerResearchResponse(BaseModel):
+    research_ids: list[str]
+    status: str = "queued"
+    message: str = ""
+
+
+class AreaResearchResponse(BaseModel):
+    id: str
+    listing_id: str
+    campaign_id: str
+    status: str
+    criteria: list[str] = Field(default_factory=list)
+    scores: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+    verdict: str | None = None
+    overall_score: float | None = None
+    street_view_urls: list[str] = Field(default_factory=list)
+    auto_outreach_enabled: bool = False
+    auto_outreach_threshold: float | None = None
+    auto_outreach_conditions: dict[str, Any] | None = None
+    auto_outreach_triggered: bool = False
+    tinyfish_job_id: str | None = None
+    error_message: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
     created_at: str
     updated_at: str

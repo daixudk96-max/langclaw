@@ -4,6 +4,7 @@
 
 import type {
   Activity,
+  AreaResearch,
   Campaign,
   CampaignPreferences,
   CampaignStats,
@@ -231,5 +232,57 @@ export async function getOutreachHistory(
 ): Promise<OutreachMessage[]> {
   return request<OutreachMessage[]>(
     `/api/v1/campaigns/${campaignId}/listings/${listingId}/outreach`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Area Research
+// ---------------------------------------------------------------------------
+
+export async function triggerResearch(
+  campaignId: string,
+  body: {
+    listing_ids: string[];
+    criteria?: string[];
+    auto_outreach?: {
+      enabled: boolean;
+      threshold: number;
+      must_pass: Record<string, number>;
+      message_template?: string;
+    };
+  }
+): Promise<{ research_ids: string[]; status: string; message: string }> {
+  return request(`/api/v1/campaigns/${campaignId}/research`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function listResearch(
+  campaignId: string,
+  status?: string
+): Promise<AreaResearch[]> {
+  const params = status ? `?status=${status}` : "";
+  return request<AreaResearch[]>(
+    `/api/v1/campaigns/${campaignId}/research${params}`
+  );
+}
+
+export async function getResearch(
+  campaignId: string,
+  researchId: string
+): Promise<AreaResearch> {
+  return request<AreaResearch>(
+    `/api/v1/campaigns/${campaignId}/research/${researchId}`
+  );
+}
+
+export async function retryResearch(
+  campaignId: string,
+  researchId: string
+): Promise<AreaResearch> {
+  return request<AreaResearch>(
+    `/api/v1/campaigns/${campaignId}/research/${researchId}/retry`,
+    { method: "POST" }
   );
 }

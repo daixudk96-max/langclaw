@@ -272,6 +272,179 @@ Your goal is to write a natural, concise Zalo message to a landlord or agent.
 Return ONLY the message text, with no extra explanation or markdown formatting."""
 
 # ---------------------------------------------------------------------------
+# Area Research — TinyFish goal + scoring prompt
+# ---------------------------------------------------------------------------
+
+CRITERIA_INSTRUCTIONS: dict[str, str] = {
+    "food_shopping": (
+        'Search "restaurants near {address}", "supermarkets near {address}", '
+        '"convenience stores near {address}". Note names, types, and approximate distances.'
+    ),
+    "healthcare": (
+        'Search "hospitals near {address}", "clinics near {address}", '
+        '"pharmacies near {address}". Note names, types (public/private), and distances.'
+    ),
+    "education_family": (
+        'Search "schools near {address}", "kindergartens near {address}", '
+        '"preschools near {address}". '
+        "Note names, levels (primary/secondary/international), distances."
+    ),
+    "transportation": (
+        'Search "bus stops near {address}", "metro stations near {address}". '
+        "Note public transit options and distances. Check if major roads are accessible."
+    ),
+    "entertainment_sports": (
+        'Search "gyms near {address}", "parks near {address}", '
+        '"cinemas near {address}", "cafes near {address}". Note names and distances.'
+    ),
+    "street_atmosphere": (
+        "This criterion is assessed via Street View. No additional search needed — "
+        "the Street View walk will provide observations about street width, cleanliness, "
+        "building condition, greenery, and overall vibe."
+    ),
+    "security": (
+        "Look for security features visible in the area: gated alleys, security cameras, "
+        "guard booths, community watch signs. Also note lighting quality and whether the "
+        "area feels residential and stable."
+    ),
+}
+
+GOAL_AREA_RESEARCH = """\
+## Objective
+Research the neighbourhood around a specific address using Google Maps.
+
+## Address
+{address}
+
+## Steps
+1. Navigate to Google Maps (maps.google.com).
+2. Search for the address: {address}
+3. Verify the location pin is correct and matches the address.
+
+4. For each of the following criteria, search "nearby" and collect results:
+
+{criteria_instructions}
+
+5. Enter Street View at or near the address pin.
+   - Look around 360 degrees.
+   - Walk 50-100m in each accessible direction from the pin.
+   - Describe: street/alley width, surface condition, cleanliness, building \
+facades, greenery/plants, lighting fixtures, security features (gates, cameras, \
+guards), noise level indicators, and general vibe.
+   - Capture screenshots at key angles (front of address, left, right, \
+alley entrance if applicable).
+
+## Output format
+Return ONLY a JSON object with the following structure:
+
+{{"neighbourhood_assessment": {{
+  "address": "{address}",
+  "amenities": {{
+    <criterion_key>: {{
+      "places": [
+        {{"name": "Place Name", "type": "restaurant/clinic/school/etc", \
+"distance": "200m", "notes": "any relevant detail"}}
+      ],
+      "summary": "Brief assessment of this criterion"
+    }}
+  }},
+  "street_view": {{
+    "description": "Detailed description of what you see in Street View",
+    "width": "narrow alley / medium street / wide road",
+    "condition": "good / fair / poor",
+    "cleanliness": "very clean / clean / average / dirty",
+    "greenery": "abundant / some / none",
+    "lighting": "well-lit / adequate / poor",
+    "security_features": "gates, cameras, guards, etc.",
+    "noise_level": "quiet / moderate / noisy",
+    "building_condition": "good repair / average / dilapidated",
+    "overall_vibe": "One sentence describing the feel of the neighbourhood"
+  }}
+}}}}
+
+CRITICAL: Return valid JSON only. No markdown fences, no explanation."""
+
+
+RESEARCH_SCORING_PROMPT = """\
+You are an expert neighbourhood evaluator for the Vietnamese rental market.
+
+Given raw observations from a Google Maps research session, score each \
+criterion on a 1-10 scale and provide a brief verdict.
+
+## Scoring Rubric (per criterion)
+| Score | Meaning |
+|-------|---------|
+| 1-2   | Nothing available / Dangerous / Very poor |
+| 3-4   | Very limited options, far away (> 2km) |
+| 5-6   | Basic options available within 1km |
+| 7-8   | Good variety, walkable (< 500m), reliable |
+| 9-10  | Excellent — abundant, diverse, very close |
+
+## Raw Observations
+{raw_observations}
+
+## Criteria to Score
+{criteria_list}
+
+## Instructions
+1. For each criterion, assign a score (integer 1-10).
+2. Provide 2-3 highlight bullet points in Vietnamese.
+3. Include detailed sub-findings as key-value pairs in a list format.
+4. Calculate the overall score as the average of all criteria scores, \
+rounded to one decimal.
+5. Write a verdict (1-2 sentences in Vietnamese) summarizing the \
+neighbourhood's suitability for living.
+
+## Output format
+Return ONLY a JSON object matching this EXACT structure:
+
+{{"overall": 8.2,
+  "verdict": "Lựa chọn tốt cho gia đình, hẻm yên tĩnh...",
+  "criteria": [
+    {{
+      "criterion_key": "food_shopping",
+      "score": 9,
+      "label": "Ăn uống & Mua sắm",
+      "highlights": ["Mật độ quán ăn cao", "Có cửa hàng thực phẩm sạch"],
+      "details": [{{"key": "dining", "value": "..."}}, {{"key": "grocery", "value": "..."}}],
+      "walking_distance": true
+    }},
+    {{
+      "criterion_key": "healthcare",
+      "score": 7,
+      "label": "Y tế",
+      "highlights": ["Phòng khám gần", "Nhà thuốc 24/7"],
+      "details": [{{"key": "hospital", "value": "..."}}, {{"key": "pharmacy", "value": "..."}}],
+      "walking_distance": false
+    }}
+  ]
+}}
+
+CRITICAL:
+- "criteria" MUST be an array/list of objects, NOT a dictionary/map
+- Each criterion object MUST have "criterion_key" field matching the key from the criteria list
+- "details" MUST be an array of {{"key": "...", "value": "..."}} objects, NOT a dictionary
+
+Return valid JSON only. No markdown fences."""
+
+
+def build_research_goal(address: str, criteria: list[str]) -> str:
+    """Build a TinyFish goal string for area research."""
+    instructions_parts = []
+    for i, key in enumerate(criteria, 1):
+        instruction = CRITERIA_INSTRUCTIONS.get(key, "")
+        if instruction:
+            instructions_parts.append(f"{i}. **{key}**: {instruction}")
+
+    criteria_block = "\n".join(instructions_parts).format(address=address)
+
+    return GOAL_AREA_RESEARCH.format(
+        address=address,
+        criteria_instructions=criteria_block,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Helper to pick the right goal template for a URL
 # ---------------------------------------------------------------------------
 

@@ -475,6 +475,174 @@ async def get_outreach_for_listing(listing_id: str) -> list[dict[str, Any]]:
     return [_row_to_dict(r) for r in rows]
 
 
+# ---------------------------------------------------------------------------
+# Area Research
+# ---------------------------------------------------------------------------
+
+
+async def create_area_research(
+    listing_id: str,
+    campaign_id: str,
+    criteria: list[str],
+    auto_outreach_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create a new area research job in queued state."""
+    db = await get_db()
+    rid = _gen_id()
+    now = _now()
+    config = auto_outreach_config or {}
+    await db.execute(
+        """INSERT INTO area_research
+           (id, listing_id, campaign_id, status, criteria_json,
+            auto_outreach_enabled, auto_outreach_threshold,
+            auto_outreach_conditions_json, created_at, updated_at)
+           VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)""",
+        (
+            rid,
+            listing_id,
+            campaign_id,
+            json.dumps(criteria, ensure_ascii=False),
+            1 if config.get("enabled") else 0,
+            config.get("threshold"),
+            json.dumps(config.get("must_pass", {}), ensure_ascii=False)
+            if config.get("must_pass")
+            else None,
+            now,
+            now,
+        ),
+    )
+    await db.commit()
+    return await get_area_research(rid)  # type: ignore[return-value]
+
+
+def _parse_research_row(row: Any) -> dict[str, Any]:
+    """Convert an area_research row to a dict with parsed JSON fields."""
+    d = _row_to_dict(row)
+    if not d:
+        return d
+    d["criteria"] = json.loads(d.pop("criteria_json", "[]"))
+    d["scores"] = json.loads(d.pop("scores_json", "null") or "null")
+    d["result"] = json.loads(d.pop("result_json", "null") or "null")
+    d["street_view_urls"] = json.loads(d.pop("street_view_urls_json", "[]") or "[]")
+    d["auto_outreach_conditions"] = json.loads(
+        d.pop("auto_outreach_conditions_json", "null") or "null"
+    )
+    d["auto_outreach_enabled"] = bool(d.get("auto_outreach_enabled"))
+    d["auto_outreach_triggered"] = bool(d.get("auto_outreach_triggered"))
+    return d
+
+
+async def get_area_research(research_id: str) -> dict[str, Any] | None:
+    """Get a single area research record."""
+    db = await get_db()
+    cursor = await db.execute("SELECT * FROM area_research WHERE id = ?", (research_id,))
+    row = await cursor.fetchone()
+    return _parse_research_row(row) if row else None
+
+
+async def get_research_for_listing(listing_id: str) -> dict[str, Any] | None:
+    """Get the latest research for a listing."""
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT * FROM area_research WHERE listing_id = ? ORDER BY created_at DESC LIMIT 1",
+        (listing_id,),
+    )
+    row = await cursor.fetchone()
+    return _parse_research_row(row) if row else None
+
+
+async def list_research(
+    campaign_id: str,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    """List area research for a campaign, optionally filtered by status."""
+    db = await get_db()
+    if status:
+        cursor = await db.execute(
+            "SELECT * FROM area_research"
+            " WHERE campaign_id = ? AND status = ?"
+            " ORDER BY created_at DESC",
+            (campaign_id, status),
+        )
+    else:
+        cursor = await db.execute(
+            "SELECT * FROM area_research WHERE campaign_id = ? ORDER BY created_at DESC",
+            (campaign_id,),
+        )
+    rows = await cursor.fetchall()
+    return [_parse_research_row(r) for r in rows]
+
+
+async def update_research_status(
+    research_id: str,
+    status: str,
+    error_message: str | None = None,
+    tinyfish_job_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Update research status and optional fields."""
+    db = await get_db()
+    now = _now()
+    sets = ["status = ?", "updated_at = ?"]
+    vals: list[Any] = [status, now]
+
+    if status == "running":
+        sets.append("started_at = ?")
+        vals.append(now)
+    if error_message is not None:
+        sets.append("error_message = ?")
+        vals.append(error_message)
+    if tinyfish_job_id is not None:
+        sets.append("tinyfish_job_id = ?")
+        vals.append(tinyfish_job_id)
+
+    vals.append(research_id)
+    await db.execute(f"UPDATE area_research SET {', '.join(sets)} WHERE id = ?", vals)
+    await db.commit()
+    return await get_area_research(research_id)
+
+
+async def complete_research(
+    research_id: str,
+    scores: dict[str, Any],
+    result: dict[str, Any],
+    verdict: str,
+    overall_score: float,
+    street_view_urls: list[str] | None = None,
+) -> dict[str, Any] | None:
+    """Mark research as done with full results."""
+    db = await get_db()
+    now = _now()
+    await db.execute(
+        """UPDATE area_research SET
+           status = 'done', scores_json = ?, result_json = ?,
+           verdict = ?, overall_score = ?, street_view_urls_json = ?,
+           completed_at = ?, updated_at = ?
+           WHERE id = ?""",
+        (
+            json.dumps(scores, ensure_ascii=False),
+            json.dumps(result, ensure_ascii=False),
+            verdict,
+            overall_score,
+            json.dumps(street_view_urls or [], ensure_ascii=False),
+            now,
+            now,
+            research_id,
+        ),
+    )
+    await db.commit()
+    return await get_area_research(research_id)
+
+
+async def link_research_to_listing(listing_id: str, research_id: str) -> None:
+    """Link a research record to its listing."""
+    db = await get_db()
+    await db.execute(
+        "UPDATE listings SET research_id = ?, updated_at = ? WHERE id = ?",
+        (research_id, _now(), listing_id),
+    )
+    await db.commit()
+
+
 async def update_outreach_status(
     message_id: str,
     status: str,

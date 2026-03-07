@@ -86,5 +86,31 @@ CREATE INDEX IF NOT EXISTS idx_listings_campaign_stage ON listings(campaign_id, 
 CREATE INDEX IF NOT EXISTS idx_listings_fingerprint ON listings(campaign_id, fingerprint);
 CREATE INDEX IF NOT EXISTS idx_scans_campaign ON scans(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_activity_campaign ON activity_log(campaign_id);
+CREATE TABLE IF NOT EXISTS area_research (
+  id TEXT PRIMARY KEY DEFAULT (hex(randomblob(6))),
+  listing_id TEXT NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'queued',
+  criteria_json TEXT NOT NULL DEFAULT '[]',
+  scores_json TEXT,
+  result_json TEXT,
+  verdict TEXT,
+  overall_score REAL,
+  street_view_urls_json TEXT DEFAULT '[]',
+  auto_outreach_enabled INTEGER DEFAULT 0,
+  auto_outreach_threshold REAL,
+  auto_outreach_conditions_json TEXT,
+  auto_outreach_triggered INTEGER DEFAULT 0,
+  tinyfish_job_id TEXT,
+  error_message TEXT,
+  started_at TEXT,
+  completed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_outreach_listing ON outreach_messages(listing_id);
 CREATE INDEX IF NOT EXISTS idx_outreach_campaign ON outreach_messages(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_area_research_listing ON area_research(listing_id);
+CREATE INDEX IF NOT EXISTS idx_area_research_campaign ON area_research(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_area_research_status ON area_research(campaign_id, status);

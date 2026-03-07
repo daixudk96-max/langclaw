@@ -29,6 +29,17 @@ async def init_db(db_path: str | None = None) -> None:
 
     schema = _SCHEMA_PATH.read_text()
     await _db.executescript(schema)
+
+    # Migrations: add columns that may not exist in older databases
+    migrations = [
+        "ALTER TABLE listings ADD COLUMN research_id TEXT REFERENCES area_research(id)",
+    ]
+    for sql in migrations:
+        try:
+            await _db.execute(sql)
+        except Exception:
+            pass  # Column already exists
+
     await _db.commit()
     logger.info("Database initialized at {}", path)
 

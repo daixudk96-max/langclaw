@@ -16,7 +16,11 @@ import uvicorn
 from loguru import logger
 
 from examples.rentagent_vn.api.scan_broker import ScanEvent, scan_broker
-from examples.rentagent_vn.api.server import create_api_app, set_scan_trigger
+from examples.rentagent_vn.api.server import (
+    create_api_app,
+    set_research_trigger,
+    set_scan_trigger,
+)
 from examples.rentagent_vn.db import queries
 from examples.rentagent_vn.db.connection import init_db
 
@@ -113,6 +117,66 @@ async def _build_scan_trigger(app_module: Any) -> Any:
     return trigger_scan
 
 
+async def _build_research_trigger(app_module: Any) -> Any:
+    """Create a research trigger that bridges the API to the research runner."""
+
+    async def trigger_research(research_id: str, campaign_id: str) -> None:
+        research = await queries.get_area_research(research_id)
+        if not research:
+            logger.error("Research {} not found, cannot trigger", research_id)
+            return
+
+        listing = await queries.get_listing(research["listing_id"])
+        if not listing:
+            logger.error(
+                "Listing {} not found for research {}",
+                research["listing_id"],
+                research_id,
+            )
+            return
+
+        address = listing.get("address", "")
+        if not address:
+            logger.warning(
+                "Listing {} has no address, skipping research {}",
+                research["listing_id"],
+                research_id,
+            )
+            await queries.update_research_status(
+                research_id, "failed", error_message="Listing has no address"
+            )
+            return
+
+        criteria = research.get("criteria", [])
+        if not criteria:
+            from examples.rentagent_vn.models import RESEARCH_CRITERIA_KEYS
+
+            criteria = list(RESEARCH_CRITERIA_KEYS)
+
+        channel_context: dict[str, Any] = {
+            "channel": "websocket",
+            "user_id": "tisu1902",
+            "context_id": campaign_id,
+            "chat_id": f"web-user:{campaign_id}",
+            "metadata": {
+                "campaign_id": campaign_id,
+                "research_id": research_id,
+            },
+        }
+
+        runner = app_module.research_runner
+        await runner.start(
+            research_id=research_id,
+            listing_id=research["listing_id"],
+            address=address,
+            criteria=criteria,
+            campaign_id=campaign_id,
+            channel_context=channel_context,
+        )
+
+    return trigger_research
+
+
 def _start_zalo_service() -> subprocess.Popen[bytes] | None:
     """Start the Zalo Node.js service if available.
 
@@ -180,6 +244,10 @@ async def main() -> None:
         # Build and register the scan trigger
         trigger = await _build_scan_trigger(app_module)
         set_scan_trigger(trigger)
+
+        # Build and register the research trigger
+        research_trigger = await _build_research_trigger(app_module)
+        set_research_trigger(research_trigger)
 
         # Create FastAPI app (skip lifespan DB init since we already did it)
         api_app = create_api_app()

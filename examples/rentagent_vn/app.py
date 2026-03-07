@@ -6,6 +6,12 @@ from examples.rentagent_vn.callbacks import (
 )
 from examples.rentagent_vn.context import RentAgentContext
 from examples.rentagent_vn.prompts import SYSTEM_PROMPT
+from examples.rentagent_vn.research_callbacks import (
+    research_error_callback,
+    research_progress_callback,
+    research_result_callback,
+)
+from examples.rentagent_vn.research_runner import BackgroundResearchRunner
 from examples.rentagent_vn.runner import BackgroundScrapeRunner
 from examples.rentagent_vn.tinyfish.client import TinyFishClient
 from examples.rentagent_vn.toolsx import contact_landlord, research_area, search_rentals
@@ -41,8 +47,17 @@ scrape_runner = BackgroundScrapeRunner(
     tinyfish_client=tinyfish_client,
 )
 
+research_runner = BackgroundResearchRunner(
+    app=app,
+    tinyfish_client=tinyfish_client,
+    progress_callback=research_progress_callback,
+    result_callback=research_result_callback,
+    error_callback=research_error_callback,
+)
+
 app.set_context_defaults(
     scrape_runner=scrape_runner,
+    research_runner=research_runner,
     rental_urls=["https://www.facebook.com/groups/1930421007111976/"],
 )
 

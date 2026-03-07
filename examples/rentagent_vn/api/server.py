@@ -17,6 +17,7 @@ from examples.rentagent_vn.db.connection import close_db, init_db
 # ---------------------------------------------------------------------------
 
 _scan_trigger: Callable[[str, str | None], Awaitable[dict[str, Any]]] | None = None
+_research_trigger: Callable[[str, str], Awaitable[None]] | None = None
 
 
 def set_scan_trigger(
@@ -29,6 +30,18 @@ def set_scan_trigger(
 
 def get_scan_trigger() -> Callable[[str, str | None], Awaitable[dict[str, Any]]] | None:
     return _scan_trigger
+
+
+def set_research_trigger(
+    trigger: Callable[[str, str], Awaitable[None]] | None,
+) -> None:
+    """Register the function that triggers area research from the API layer."""
+    global _research_trigger
+    _research_trigger = trigger
+
+
+def get_research_trigger() -> Callable[[str, str], Awaitable[None]] | None:
+    return _research_trigger
 
 
 # ---------------------------------------------------------------------------
@@ -62,9 +75,11 @@ def create_api_app() -> FastAPI:
     )
 
     from examples.rentagent_vn.api.routes.campaigns import router as campaigns_router
+    from examples.rentagent_vn.api.routes.research import router as research_router
     from examples.rentagent_vn.api.routes.zalo import router as zalo_router
 
     app.include_router(campaigns_router)
+    app.include_router(research_router)
     app.include_router(zalo_router)
 
     return app

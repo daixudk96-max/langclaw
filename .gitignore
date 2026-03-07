@@ -50,3 +50,4 @@ logs/
 
 # Secret
 tisu.py
+examples/photography/*

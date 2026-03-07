@@ -4,14 +4,18 @@ import { useState, useEffect } from "react";
 import { useCampaignStore } from "@/stores/campaign-store";
 import { useActivityStore } from "@/stores/activity-store";
 import { useScanStreamStore } from "@/stores/scan-stream-store";
+import { useResearchStore } from "@/stores/research-store";
 import { useCampaign } from "@/hooks/use-campaign";
 import { useScanStream } from "@/hooks/use-scan-stream";
+import { useResearchStream } from "@/hooks/use-research-stream";
 import { TopBar } from "./top-bar";
 import { StatsPanel } from "./stats-panel";
 import { Pipeline } from "./pipeline";
 import { ListingDetail } from "./listing-detail";
 import { ScanControls } from "./scan-controls";
 import { ScanProgressPanel } from "./scan-progress-panel";
+import { ResearchActionBar } from "./research-action-bar";
+import { ResearchConfigSheet } from "./research-config-sheet";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { ActivityFeed } from "@/components/activity/activity-feed";
 import { useListingStore } from "@/stores/listing-store";
@@ -26,13 +30,22 @@ export function Dashboard({ campaignId }: DashboardProps) {
   const { isScanning, latestScan, fetchScans, fetchActivities } =
     useActivityStore();
   const scanStatus = useScanStreamStore((s) => s.status);
+  const { fetchAllResearch, researching } = useResearchStore();
   const [chatOpen, setChatOpen] = useState(false);
+
+  // Check if any research is active
+  const hasActiveResearch = Object.values(researching).some(
+    (r) => r.status === "queued" || r.status === "running"
+  );
 
   // Load all campaign data + poll
   useCampaign(campaignId);
 
   // Connect SSE when scanning
   useScanStream(campaignId, isScanning && latestScan ? latestScan.id : null);
+
+  // Connect research SSE when research is active
+  useResearchStream(campaignId, hasActiveResearch);
 
   // Refetch data when scan completes
   useEffect(() => {
@@ -50,6 +63,11 @@ export function Dashboard({ campaignId }: DashboardProps) {
     fetchScans,
     fetchActivities,
   ]);
+
+  // Load research data on mount
+  useEffect(() => {
+    fetchAllResearch(campaignId);
+  }, [campaignId, fetchAllResearch]);
 
   if (!campaign) {
     return (
@@ -89,6 +107,10 @@ export function Dashboard({ campaignId }: DashboardProps) {
           onClose={() => selectListing(null)}
         />
       )}
+
+      {/* Research selection action bar */}
+      <ResearchActionBar />
+      <ResearchConfigSheet campaignId={campaignId} />
 
       {/* Chat panel */}
       <ChatPanel
