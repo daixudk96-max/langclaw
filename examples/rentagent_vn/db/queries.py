@@ -209,12 +209,12 @@ async def get_listings(
     db = await get_db()
     if stage:
         cursor = await db.execute(
-            "SELECT * FROM listings WHERE campaign_id = ? AND stage = ? ORDER BY created_at DESC",
+            "SELECT * FROM listings WHERE campaign_id = ? AND stage = ? ORDER BY updated_at DESC",
             (campaign_id, stage),
         )
     else:
         cursor = await db.execute(
-            "SELECT * FROM listings WHERE campaign_id = ? ORDER BY created_at DESC",
+            "SELECT * FROM listings WHERE campaign_id = ? ORDER BY updated_at DESC",
             (campaign_id,),
         )
     rows = await cursor.fetchall()
