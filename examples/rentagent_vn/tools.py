@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Any
 
 from langchain.tools import ToolRuntime
@@ -37,7 +40,12 @@ async def search_rentals(
     urls = runtime.context.rental_urls
 
     if runner is None:
-        raise ValueError("Scrape runner not found in context")
+        msg = "Scrape runner not found in context"
+        logger.error(msg)
+        return {
+            "status": "error",
+            "message": msg,
+        }
 
     channel_context = {
         "user_role": runtime.context.user_role,
@@ -88,3 +96,59 @@ async def research_area(area_name: str, city: str = "Ho Chi Minh") -> dict[str, 
         city: City name. Defaults to "Ho Chi Minh".
     """
     pass
+
+
+@tool
+async def extract_rental_criteria(
+    location: str,
+    bedrooms: int | None = None,
+    bathrooms: int | None = None,
+    min_price: int | None = None,
+    max_price: int | None = None,
+    min_area: int | None = None,
+    max_area: int | None = None,
+    property_type: str | None = None,
+    notes: str | None = None,
+) -> str:
+    """Extract and save rental criteria from the user's requirements.
+
+    Call this tool when the user describes their rental needs during onboarding.
+    Extract the criteria from their message and pass them as parameters.
+    The criteria will be sent to the frontend to pre-fill the search form.
+
+    Args:
+        location: District, city or area name (e.g., "District 7", "Binh Thanh, Ho Chi Minh").
+        bedrooms: Number of bedrooms. Use 0 for studio.
+        bathrooms: Number of bathrooms.
+        min_price: Minimum monthly rent in VND. Convert shorthand:
+            "5tr" or "5 triệu" = 5000000, "15M" = 15000000.
+        max_price: Maximum monthly rent in VND. Same conversion rules.
+        min_area: Minimum area in square meters.
+        max_area: Maximum area in square meters.
+        property_type: Type of property - "room", "apartment", "studio", "house".
+        notes: Any other requirements (e.g., "pet-friendly", "has balcony").
+    """
+    preferences = {
+        k: v
+        for k, v in {
+            "location": location,
+            "bedrooms": bedrooms,
+            "bathrooms": bathrooms,
+            "min_price": min_price,
+            "max_price": max_price,
+            "min_area": min_area,
+            "max_area": max_area,
+            "property_type": property_type,
+            "notes": notes,
+        }.items()
+        if v is not None
+    }
+
+    result = {
+        "status": "extracted",
+        "preferences": preferences,
+    }
+
+    logger.info(f"Extracted rental criteria: {preferences}")
+
+    return json.dumps(result)

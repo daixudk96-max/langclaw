@@ -14,12 +14,71 @@ from examples.rentagent_vn.runners.callbacks import (
     streaming_url_callback,
 )
 from examples.rentagent_vn.tinyfish.client import TinyFishClient
-from examples.rentagent_vn.tools import contact_landlord, research_area, search_rentals
+from examples.rentagent_vn.tools import (
+    contact_landlord,
+    extract_rental_criteria,
+    research_area,
+    search_rentals,
+)
 from langclaw import Langclaw
 
 app = Langclaw(system_prompt=SYSTEM_PROMPT, context_schema=RentAgentContext)
-app.register_tools([search_rentals, contact_landlord, research_area])
-app.role("user", tools=["search_rentals", "contact_landlord", "research_area"])
+app.register_tools(
+    [
+        search_rentals,
+        contact_landlord,
+        research_area,
+        extract_rental_criteria,
+    ]
+)
+app.role(
+    "user",
+    tools=[
+        "search_rentals",
+        "contact_landlord",
+        "research_area",
+        "extract_rental_criteria",
+    ],
+)
+
+ONBOARD_AGENT_PROMPT = """\
+You are an onboarding assistant helping users set up their rental search called Sarah.
+
+Your job is to have a brief conversation to understand what the user is
+looking for, then call the extract_rental_criteria tool with the extracted
+parameters. The frontend will automatically navigate to the next step.
+
+Guidelines:
+- Be conversational and friendly
+- Ask follow-up questions to gather key details: location, budget, bedrooms
+- Once you have at least location OR budget, call extract_rental_criteria
+- Do NOT repeat what you extracted - the frontend handles the confirmation
+
+Example conversation:
+  User: "Hi"
+  Assistant: "Hey! Looking for a place to rent? Tell me what you have in mind
+             - area, budget, number of bedrooms, or any must-haves."
+  User: "Something in District 7, around 10-15 million"
+  Assistant: "Got it, District 7 with a budget of 10-15M. How many bedrooms?"
+  User: "2 bedrooms, and I need a balcony"
+  -> Call extract_rental_criteria tool with the following parameters: (
+       district="District 7",
+       min_price=10000000,
+       max_price=15000000,
+       bedrooms=2,
+       notes="needs balcony"
+     )
+"""
+
+app.agent(
+    name="onboard_agent",
+    description=(
+        "Onboarding agent that extracts rental needs from natural language "
+        "into structured criteria for the search form."
+    ),
+    system_prompt=ONBOARD_AGENT_PROMPT,
+    tools=[extract_rental_criteria],
+)
 
 tinyfish_client = TinyFishClient(timeout=5000)
 

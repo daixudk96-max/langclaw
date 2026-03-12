@@ -16,53 +16,53 @@ const PREF_FIELDS: {
   placeholder: string;
   type?: string;
 }[] = [
-  { key: "district", label: "Khu vực", placeholder: "Quận 7, Bình Thạnh..." },
+  { key: "district", label: "Location", placeholder: "District 7, Binh Thanh..." },
   {
     key: "property_type",
-    label: "Loại hình",
-    placeholder: "Phòng trọ, căn hộ mini...",
+    label: "Property type",
+    placeholder: "Room, apartment, studio...",
   },
   {
     key: "bedrooms",
-    label: "Phòng ngủ",
+    label: "Bedrooms",
     placeholder: "1, 2, 3...",
     type: "number",
   },
   {
     key: "min_price",
-    label: "Giá tối thiểu",
+    label: "Min price",
     placeholder: "5,000,000",
     type: "number",
   },
   {
     key: "max_price",
-    label: "Giá tối đa",
+    label: "Max price",
     placeholder: "10,000,000",
     type: "number",
   },
   {
     key: "min_area",
-    label: "Diện tích tối thiểu",
+    label: "Min area",
     placeholder: "25 m²",
     type: "number",
   },
   {
     key: "notes",
-    label: "Yêu cầu khác",
-    placeholder: "Có ban công, gần metro...",
+    label: "Other requirements",
+    placeholder: "Has balcony, near metro...",
   },
 ];
 
 function formatValue(key: string, value: unknown): string {
   if (value === undefined || value === null || value === "") return "";
   if (key === "min_price" || key === "max_price") {
-    return `${Number(value).toLocaleString("vi-VN")}đ`;
+    return `${Number(value).toLocaleString("en-US")} VND`;
   }
   if (key === "min_area") {
     return `${value}m²`;
   }
   if (key === "bedrooms") {
-    return `${value} PN`;
+    return `${value} BR`;
   }
   return String(value);
 }
@@ -118,19 +118,19 @@ export function ConfirmStep({
           style={{ color: "var(--ink-50)" }}
         >
           <ArrowLeft size={16} />
-          Quay lại
+          Back
         </button>
         <h1
           className="text-[22px] font-extrabold tracking-tight"
           style={{ color: "var(--ink)" }}
         >
-          Xác nhận tiêu chí
+          Confirm criteria
         </h1>
         <p
           className="text-[13px] font-medium mt-1"
           style={{ color: "var(--ink-50)" }}
         >
-          Chạm vào để chỉnh sửa
+          Tap to edit
         </p>
       </div>
 
@@ -201,7 +201,7 @@ export function ConfirmStep({
                 color: "var(--ink-30)",
               }}
             >
-              + Thêm {field.label.toLowerCase()}
+              + Add {field.label.toLowerCase()}
             </button>
           ))}
         </div>
@@ -253,7 +253,7 @@ export function ConfirmStep({
             borderRadius: "var(--r-lg)",
           }}
         >
-          Tiếp tục →
+          Continue →
         </button>
       </div>
     </div>

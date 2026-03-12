@@ -65,10 +65,17 @@ export function ChatStep({ onExtracted }: ChatStepProps) {
           },
         ]);
         setIsTyping(false);
-
-        const prefs = tryExtractPreferences(msg.content);
-        if (prefs) {
-          setTimeout(() => onExtractedRef.current(prefs), 1500);
+      } else if (msg.type === "tool_result") {
+        // Handle extract_rental_criteria tool result
+        if (msg.metadata?.tool === "extract_rental_criteria") {
+          try {
+            const result = JSON.parse(msg.content);
+            if (result.status === "extracted" && result.preferences) {
+              setTimeout(() => onExtractedRef.current(result.preferences), 500);
+            }
+          } catch {
+            console.error("Failed to parse tool result:", msg.content);
+          }
         }
       } else if (msg.type === "tool_progress") {
         setMessages((prev) => [
@@ -100,7 +107,7 @@ export function ChatStep({ onExtracted }: ChatStepProps) {
     ]);
     setInput("");
     setIsTyping(true);
-    wsRef.current.send(text);
+    wsRef.current.send(text, { agent_name: "onboard_agent" });
   };
 
   const handleSkipChat = () => {
@@ -268,7 +275,7 @@ export function ChatStep({ onExtracted }: ChatStepProps) {
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ví dụ: Phòng trọ Bình Thạnh, dưới 8 triệu..."
+            placeholder="E.g., 2-bedroom in District 7, under 15 million..."
             disabled={isTyping}
             className="flex-1 bg-transparent outline-none text-[14px] font-medium placeholder:font-normal"
             style={{
@@ -294,31 +301,9 @@ export function ChatStep({ onExtracted }: ChatStepProps) {
           className="mt-3 w-full text-center text-[12px] font-medium hover:underline transition-colors"
           style={{ color: "var(--ink-30)" }}
         >
-          Bỏ qua, nhập thủ công →
+          Skip, enter manually →
         </button>
       </div>
     </div>
   );
-}
-
-function tryExtractPreferences(content: string): CampaignPreferences | null {
-  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
-  if (jsonMatch) {
-    try {
-      return JSON.parse(jsonMatch[1]);
-    } catch {
-      // Not valid JSON
-    }
-  }
-
-  const inlineMatch = content.match(/\{[\s\S]*"district"[\s\S]*\}/);
-  if (inlineMatch) {
-    try {
-      return JSON.parse(inlineMatch[0]);
-    } catch {
-      // Not valid JSON
-    }
-  }
-
-  return null;
 }
