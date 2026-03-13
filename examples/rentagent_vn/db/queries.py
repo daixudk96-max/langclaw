@@ -46,20 +46,25 @@ async def create_campaign(
     preferences: dict[str, Any] | None = None,
     sources: list[str] | None = None,
     scan_frequency: str = "manual",
+    auto_scan_hour: int = 6,
+    auto_scan_timezone: str = "Asia/Ho_Chi_Minh",
 ) -> dict[str, Any]:
     db = await get_db()
     cid = _gen_id()
     now = _now()
     await db.execute(
         """INSERT INTO campaigns
-           (id, name, preferences_json, sources_json, scan_frequency, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+           (id, name, preferences_json, sources_json, scan_frequency,
+            auto_scan_hour, auto_scan_timezone, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             cid,
             name,
             json.dumps(preferences or {}, ensure_ascii=False),
             json.dumps(sources or [], ensure_ascii=False),
             scan_frequency,
+            auto_scan_hour,
+            auto_scan_timezone,
             now,
             now,
         ),
@@ -93,6 +98,62 @@ async def list_campaigns() -> list[dict[str, Any]]:
     return results
 
 
+async def list_auto_campaigns() -> list[dict[str, Any]]:
+    """Get campaigns with scan_frequency='auto' and status='active'."""
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT * FROM campaigns WHERE scan_frequency = 'auto' AND status = 'active' "
+        "ORDER BY created_at DESC"
+    )
+    rows = await cursor.fetchall()
+    results = []
+    for row in rows:
+        d = _row_to_dict(row)
+        d["preferences"] = json.loads(d.pop("preferences_json", "{}"))
+        d["sources"] = json.loads(d.pop("sources_json", "[]"))
+        results.append(d)
+    return results
+
+
+async def get_campaigns_due_for_scan(current_hour: int, today_date: str) -> list[dict[str, Any]]:
+    """Get auto campaigns that are due for scanning now.
+
+    Returns campaigns where:
+    - scan_frequency = 'auto'
+    - status = 'active'
+    - auto_scan_hour matches current_hour
+    - last_auto_scan_date is not today (avoid duplicate scans)
+    """
+    db = await get_db()
+    cursor = await db.execute(
+        """SELECT * FROM campaigns
+           WHERE scan_frequency = 'auto'
+             AND status = 'active'
+             AND auto_scan_hour = ?
+             AND (last_auto_scan_date IS NULL OR last_auto_scan_date != ?)
+           ORDER BY created_at DESC""",
+        (current_hour, today_date),
+    )
+    rows = await cursor.fetchall()
+    results = []
+    for row in rows:
+        d = _row_to_dict(row)
+        d["preferences"] = json.loads(d.pop("preferences_json", "{}"))
+        d["sources"] = json.loads(d.pop("sources_json", "[]"))
+        results.append(d)
+    return results
+
+
+async def mark_campaign_scanned(campaign_id: str, scan_date: str) -> None:
+    """Update last_auto_scan_date to prevent duplicate scans."""
+    db = await get_db()
+    await db.execute(
+        "UPDATE campaigns SET last_auto_scan_date = ?, updated_at = ? WHERE id = ?",
+        (scan_date, _now(), campaign_id),
+    )
+    await db.commit()
+
+
 async def update_campaign(campaign_id: str, **fields: Any) -> dict[str, Any] | None:
     db = await get_db()
     sets: list[str] = []
@@ -104,7 +165,7 @@ async def update_campaign(campaign_id: str, **fields: Any) -> dict[str, Any] | N
         elif key == "sources":
             sets.append("sources_json = ?")
             vals.append(json.dumps(val, ensure_ascii=False))
-        elif key in ("name", "scan_frequency", "status"):
+        elif key in ("name", "scan_frequency", "status", "auto_scan_hour", "auto_scan_timezone"):
             sets.append(f"{key} = ?")
             vals.append(val)
     if not sets:

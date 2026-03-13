@@ -37,6 +37,8 @@ async def create_campaign(body: CreateCampaignRequest) -> Any:
         preferences=body.preferences,
         sources=body.sources,
         scan_frequency=body.scan_frequency,
+        auto_scan_hour=body.auto_scan_hour,
+        auto_scan_timezone=body.auto_scan_timezone,
     )
     return campaign
 

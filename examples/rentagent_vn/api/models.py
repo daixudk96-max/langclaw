@@ -2,9 +2,30 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
+
+# ---------------------------------------------------------------------------
+# Type Aliases
+# ---------------------------------------------------------------------------
+
+ScanFrequency = Literal["auto", "manual"]
+CampaignStatus = Literal["active", "paused", "archived"]
+ScanStatus = Literal["running", "completed", "failed"]
+ListingStage = Literal[
+    "new",
+    "reviewing",
+    "contacted",
+    "visited",
+    "skipped",
+    "pending_review",
+    "researching",
+]
+OutreachStatus = Literal["drafted", "sent", "failed"]
+ResearchStatus = Literal["queued", "running", "done", "failed"]
+
+Hour = Annotated[int, Field(ge=0, le=23)]
 
 # ---------------------------------------------------------------------------
 # Campaign
@@ -15,15 +36,19 @@ class CreateCampaignRequest(BaseModel):
     name: str = "New Campaign"
     preferences: dict[str, Any] = Field(default_factory=dict)
     sources: list[str] = Field(default_factory=list)
-    scan_frequency: str = "manual"
+    scan_frequency: ScanFrequency = "manual"
+    auto_scan_hour: Hour = 6
+    auto_scan_timezone: str = "Asia/Ho_Chi_Minh"
 
 
 class UpdateCampaignRequest(BaseModel):
     name: str | None = None
     preferences: dict[str, Any] | None = None
     sources: list[str] | None = None
-    scan_frequency: str | None = None
-    status: str | None = None
+    scan_frequency: ScanFrequency | None = None
+    auto_scan_hour: Hour | None = None
+    auto_scan_timezone: str | None = None
+    status: CampaignStatus | None = None
 
 
 class CampaignResponse(BaseModel):
@@ -31,8 +56,11 @@ class CampaignResponse(BaseModel):
     name: str
     preferences: dict[str, Any]
     sources: list[str]
-    scan_frequency: str
-    status: str
+    scan_frequency: ScanFrequency
+    auto_scan_hour: Hour = 6
+    auto_scan_timezone: str = "Asia/Ho_Chi_Minh"
+    last_auto_scan_date: str | None = None
+    status: CampaignStatus
     created_at: str
     updated_at: str
 
@@ -43,7 +71,7 @@ class CampaignResponse(BaseModel):
 
 
 class UpdateListingRequest(BaseModel):
-    stage: str | None = None
+    stage: ListingStage | None = None
     skip_reason: str | None = None
     user_notes: str | None = None
 
@@ -51,7 +79,7 @@ class UpdateListingRequest(BaseModel):
 class ListingResponse(BaseModel):
     id: str
     campaign_id: str
-    stage: str
+    stage: ListingStage
     title: str | None = None
     description: str | None = None
     price_vnd: float | None = None
@@ -90,7 +118,7 @@ class ScanResponse(BaseModel):
     id: str
     campaign_id: str
     job_id: str | None = None
-    status: str
+    status: ScanStatus
     listings_found: int = 0
     new_listings: int = 0
     errors: list[dict[str, Any]] = Field(default_factory=list)
@@ -168,7 +196,7 @@ class OutreachMessageResponse(BaseModel):
     campaign_id: str
     draft_text: str
     final_text: str | None = None
-    status: str
+    status: OutreachStatus
     landlord_phone: str | None = None
     zalo_user_id: str | None = None
     sent_at: str | None = None
@@ -211,7 +239,7 @@ class TriggerResearchRequest(BaseModel):
 
 class TriggerResearchResponse(BaseModel):
     research_ids: list[str]
-    status: str = "queued"
+    status: ResearchStatus = "queued"
     message: str = ""
 
 
@@ -219,7 +247,7 @@ class AreaResearchResponse(BaseModel):
     id: str
     listing_id: str
     campaign_id: str
-    status: str
+    status: ResearchStatus
     criteria: list[str] = Field(default_factory=list)
     scores: dict[str, Any] | None = None
     result: dict[str, Any] | None = None
