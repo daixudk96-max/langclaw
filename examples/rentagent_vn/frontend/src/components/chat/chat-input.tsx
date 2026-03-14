@@ -26,7 +26,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
       <Input
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        placeholder="Nhắn tin cho trợ lý..."
+        placeholder="Message the assistant..."
         disabled={disabled}
       />
       <Button

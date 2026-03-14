@@ -16,8 +16,6 @@ DEFAULT_PLATFORM_URLS: list[str] = [
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """\
-## RentAgent VN — AI-Powered Rental Assistant
-
 You are an expert rental assistant for the Vietnamese market. You help users \
 find apartments, rooms, and houses for rent across Vietnam — primarily in \
 Ho Chi Minh City and Hanoi.
@@ -33,7 +31,7 @@ Ho Chi Minh City and Hanoi.
 - You provide a natural-language `query` describing what the user wants.
 - The tool automatically searches across all configured platform URLs.
 - Keep the query focused: describe the property (area, bedrooms, budget, \
-  special requirements) in plain Vietnamese or English.
+  special requirements) in plain English.
 - If the user mentions preferences during conversation (e.g. "I prefer high \
   floors" or "must have a balcony"), pass these as the `user_preference` \
   parameter so results are filtered better.
@@ -83,55 +81,63 @@ anything else). Use ONLY the exact field names shown below.
 
 Example (one listing):
 
-{"listings": [{
-  "title": "2PN ban công · Q7 · 12tr/tháng",
-  "description": "Căn hộ 2 phòng ngủ, 1 WC, có ban công thoáng mát, full nội thất, gần Lotte Mart",
-  "price_vnd": 12000000.0,
-  "price_display": "12 triệu/tháng",
-  "deposit_vnd": 24000000.0,
-  "address": "123 Nguyễn Hữu Thọ, Quận 7, TP.HCM",
-  "district": "Quan 7",
-  "city": "Ho Chi Minh",
-  "area_sqm": 65.0,
-  "bedrooms": 2,
-  "bathrooms": 1,
-  "listing_url": "https://example.com/listing/123",
-  "thumbnail_url": "https://example.com/img.jpg",
-  "posted_date": "2026-02-28",
-  "source_platform": "nhatot.com",
-  "landlord_name": "Anh Minh",
-  "landlord_phone": "0901234567",
-  "landlord_zalo": "0901234567",
-  "landlord_facebook_url": "https://www.facebook.com/profile.php?id=100001234567",
-  "landlord_contact_method": "phone,zalo"
-}]}
+{{
+  "listings": [
+    {{
+      "title": "2BR with balcony · District 7 · 12M/month",
+      "description": "2 bedroom apartment, 1 bathroom, spacious balcony",
+      "price_vnd": 12000000.0,
+      "price_display": "12M/month",
+      "deposit_vnd": 24000000.0,
+      "address": "123 Nguyen Huu Tho, District 7, HCMC",
+      "district": "District 7",
+      "city": "Ho Chi Minh",
+      "area_sqm": 65.0,
+      "bedrooms": 2,
+      "bathrooms": 1,
+      "listing_url": "https://example.com/listing/123",
+      "thumbnail_url": "https://example.com/actual_room_image.jpg",
+      "posted_date": "2026-02-28",
+      "source_platform": "nhatot.com",
+      "landlord_name": "Mr. Minh",
+      "landlord_phone": "0901234567",
+      "landlord_zalo": "0901234567",
+      "landlord_facebook_url": "https://www.facebook.com/profile.php?id=100001234567",
+      "landlord_contact_method": "phone,zalo"
+    }}
+  ]
+}}
 
 Field guide (use these EXACT keys):
-- title          : Short headline — room type · district · price (e.g. "Studio · Bình Thạnh · 4tr")
-- description    : 1-2 sentence summary (size, furniture, notable features)
-- price_vnd      : Monthly rent as float. Convert shorthand: 5tr = 5000000.0,
-   15 triệu = 15000000.0. null if unknown
-- price_display  : Price as written in the post (e.g. "5tr/tháng")
-- deposit_vnd    : Deposit as float. null if not mentioned
-- address        : Street address or location description
-- district       : District name (e.g. "Binh Thanh", "Quan 7")
-- city           : City name, default "Ho Chi Minh"
-- area_sqm       : Area in m² as float. null if unknown
-- bedrooms       : Number of bedrooms (integer). Extract from "1PN"=1, "2PN"=2. null if unknown
-- bathrooms      : Number of bathrooms (integer). null if unknown
-- listing_url    : Permalink to this specific post or listing page
-- thumbnail_url  : First image URL. null if none
-- posted_date    : Date posted (YYYY-MM-DD). null if unknown
-- source_platform: "facebook", "nhatot.com", "batdongsan.com.vn", etc.
-- landlord_name  : Name of the poster / landlord. null if unknown
-- landlord_phone : Vietnamese mobile number (09xx/03xx/07xx/08xx/05xx). null if not found
-- landlord_zalo  : Zalo number (often same as phone). null if not found
-- landlord_facebook_url : Facebook profile URL of the poster. null if not available
+- title           : Short headline — room type · district · price \
+(e.g. "Studio · Binh Thanh · 4M")
+- description     : 1-2 sentence summary (size, furniture, notable features)
+- price_vnd       : Monthly rent as float. Convert shorthand: \
+5tr = 5000000.0, 15 trieu = 15000000.0. null if unknown
+- price_display   : Price as written in the post (e.g. "5M/month")
+- deposit_vnd     : Deposit as float. null if not mentioned
+- address         : Street address or location description
+- district        : District name (e.g. "Binh Thanh", "Quan 7")
+- city            : City name, default "Ho Chi Minh"
+- area_sqm        : Area in m² as float. null if unknown
+- bedrooms        : Number of bedrooms (integer). \
+Extract from "1PN"=1, "2PN"=2. null if unknown
+- bathrooms       : Number of bathrooms (integer). null if unknown
+- listing_url     : Permalink to this specific post or listing page
+- thumbnail_url   : Actual high-resolution image of the room/property. \
+CRITICAL: Do NOT extract user avatars or tiny UI icons. \
+Finding a real photo of the rental is extremely important. null if none exist.
+- posted_date     : Date posted (YYYY-MM-DD). null if unknown
+- source_platform : "facebook", "nhatot.com", "batdongsan.com.vn", etc.
+- landlord_name   : Name of the poster / landlord. null if unknown
+- landlord_phone  : Vietnamese mobile (09xx/03xx/07xx/08xx/05xx). null if not found
+- landlord_zalo   : Zalo number (often same as phone). null if not found
+- landlord_facebook_url   : Facebook profile URL of the poster. null if not available
 - landlord_contact_method : Comma-separated — "phone", "zalo", "messenger"
 
 CRITICAL RULES:
-- If a value is unknown or not mentioned, set it to null. NEVER use \
-placeholder text like "Không đề cập", "Chưa rõ", "N/A", or "Liên hệ".
+- If a value is unknown or not mentioned, set it to null. \
+NEVER use placeholder text like "Not mentioned", "Unknown", "N/A", or "Contact".
 - Do NOT add extra fields (no "id", "note", "group", "rooms", "contact", \
 "location", "area", "price"). Use ONLY the field names listed above.
 - Return valid JSON only."""
@@ -139,37 +145,61 @@ placeholder text like "Không đề cập", "Chưa rõ", "N/A", or "Liên hệ".
 
 GOAL_FACEBOOK_GROUP = """\
 ## Objective
-Extract rental listings from this Facebook group page.
+Search for rental listings in this Facebook group using the group's search \
+function, then extract matching results.
+
+## Steps
+1. **Search within the group.**
+   - Locate the search icon or search bar inside the group (usually near the \
+top of the group page, labeled "Tìm kiếm trong nhóm" or a magnifying glass icon).
+   - Type the search query into the group search box and press Enter.
+   - If a sort/filter option appears, select **"Mới nhất" (Newest)** to surface \
+the most recent posts first.
+   - If the group search is unavailable, fall back to browsing the feed sorted \
+by "Mới nhất" — look for a "Sắp xếp" or sort toggle near the top of the feed.
+
+2. **Filter results — accept ONLY valid rental offers.**
+   - CRITICAL: STRICTLY IGNORE posts from people looking for rent \
+(rentees saying "tìm phòng", "cần tìm", "cần thuê", "ai có phòng không"). \
+ONLY extract posts from landlords or agents offering a rental ("cho thuê", \
+"pass phòng", "còn phòng trống").
+   - Skip discussions, questions, memes, and non-rental content.
+   - PRIORITIZE posts from the last 7 days. Deprioritize posts older than 30 days \
+(extract them only if you cannot find enough recent ones).
+
+3. **Extract listing details from each valid post.**
+   - Read the full post text for price, address, size, room type, and contact info.
+   - Prefer posts whose content explicitly matches the search query \
+(district, price range, room type).
+
+4. **Capture media and contact.**
+   - Locate and extract the actual image of the room attached to the post for \
+thumbnail_url (do NOT use the poster's profile picture or group cover photo).
+   - Capture the poster's Facebook profile URL as landlord_facebook_url.
+
+## Termination Conditions
+Stop when ANY of these is true:
+- You have successfully extracted between 5 and 10 valid rental listings \
+THAT INCLUDE at least one valid contact method (phone, zalo, or messenger link). \
+Do not stop until you have at least 5 with contacts.
+- You have reviewed 40 posts from the search results and cannot find more matches.
+- No more content loads after scrolling.
+
+## Guardrails
+- Do NOT click into individual posts or navigate away from the group feed.
+- Do NOT invent or fabricate any data not present in the post.
+- Do NOT use the main Facebook search bar — search WITHIN the group only.
+
+## Edge cases
+- If a post mentions price in shorthand (e.g. "5tr", "5M"), convert: \
+5tr = 5000000.0 for price_vnd, keep "5M/month" for price_display.
+- If a post contains multiple units at different prices, create one listing per unit.
+- "1PN" means bedrooms=1, "2PN" means bedrooms=2, "Studio" means bedrooms=0.
+- Most Facebook posts will NOT have all fields. Set missing fields to null.
 
 ## Context
 User is looking for: {query}
 {preference_line}
-
-## Steps
-1. Scroll down to load at least 15 posts.
-2. For EACH post that IS a rental listing (skip discussions, questions, \
-memes, and non-rental content), extract the listing details from the post text.
-3. For each poster, capture their Facebook profile URL as landlord_facebook_url.
-
-## Stop when ANY of these is true:
-- You have extracted 15 rental listings.
-- You have scrolled through 30 posts.
-- No more content loads after scrolling.
-
-## Guardrails
-- Do NOT click on individual posts or navigate away from the group feed.
-- Do NOT invent or fabricate any data not present in the post.
-- Do NOT add extra fields not listed in the schema below.
-
-## Edge cases
-- If a post mentions price in shorthand (e.g. "5tr", "5 triệu"), convert: \
-5tr = 5000000.0 for price_vnd, keep "5tr/tháng" for price_display.
-- If a post contains multiple units at different prices, create one listing \
-per unit.
-- "1PN" means bedrooms=1, "2PN" means bedrooms=2, "Studio" means bedrooms=0.
-- Most Facebook posts will NOT have all fields. Set missing fields to null. \
-It is normal for thumbnail_url, deposit_vnd, area_sqm, bathrooms, and \
-posted_date to be null for Facebook posts.
 
 {schema_block}"""
 
@@ -178,20 +208,26 @@ GOAL_NHATOT = """\
 ## Objective
 Search for rental listings on this Nha Tot page.
 
-## Context
-User is looking for: {query}
-{preference_line}
-
 ## Steps
-1. If there is a search box, type the search query. Otherwise, browse \
-the current listing page.
+1. If there is a search box, type the search query. Otherwise, browse the current listing page.
 2. Wait for results to load.
-3. Extract the first 15 listings from the results page.
+3. Extract the listings from the results page.
+4. Ensure you extract the actual property image from the listing card for the thumbnail_url.
+
+## Termination Conditions
+Stop when ANY of these is true:
+- You have successfully extracted between 5 and 10 valid rental listings \
+THAT INCLUDE at least one contact method (phone, zalo, or chat). \
+Do not stop until you have at least 5 with contacts.
+- You reach the end of the results page.
 
 ## Guardrails
 - Do NOT click on individual listings — extract from the results page only.
-- Do NOT add extra fields not listed in the schema below.
 - Set source_platform to "nhatot.com" for all listings.
+
+## Context
+User is looking for: {query}
+{preference_line}
 
 {schema_block}"""
 
@@ -200,18 +236,25 @@ GOAL_BATDONGSAN = """\
 ## Objective
 Search for rental listings on this Bat Dong San page.
 
-## Context
-User is looking for: {query}
-{preference_line}
-
 ## Steps
 1. If there is a search/filter interface, use it to narrow down results.
 2. Wait for results to load.
-3. Extract the first 15 listings from the results.
+3. Extract the listings from the results page.
+4. Ensure you extract the actual property image from the listing card for the thumbnail_url.
+
+## Termination Conditions
+Stop when ANY of these is true:
+- You have successfully extracted between 5 and 10 valid rental listings \
+THAT INCLUDE at least one contact method (phone, zalo, or chat). \
+Do not stop until you have at least 5 with contacts.
+- You reach the end of the results page.
 
 ## Guardrails
-- Do NOT add extra fields not listed in the schema below.
 - Set source_platform to "batdongsan.com.vn" for all listings.
+
+## Context
+User is looking for: {query}
+{preference_line}
 
 {schema_block}"""
 
@@ -220,16 +263,24 @@ GOAL_GENERIC = """\
 ## Objective
 Extract rental listings from this webpage.
 
-## Context
-User is looking for: {query}
-{preference_line}
-
 ## Steps
 1. Scroll down to load more content if the page uses infinite scroll.
-2. Look for rental property listings. Extract up to 15 listings, then stop.
+2. Look for rental property listings.
+3. Ensure you extract the actual property image from the listing for the thumbnail_url, \
+not site logos or tiny icons.
+
+## Termination Conditions
+Stop when ANY of these is true:
+- You have successfully extracted between 5 and 10 valid rental listings \
+THAT INCLUDE at least one contact method. Do not stop until you have at least 5 with contacts.
+- You reach the end of the page or no more items load.
 
 ## Guardrails
 - Do NOT add extra fields not listed in the schema below.
+
+## Context
+User is looking for: {query}
+{preference_line}
 
 {schema_block}"""
 
@@ -255,8 +306,11 @@ Your goal is to write a natural, concise Zalo message to a landlord or agent.
     - **DO NOT** use emojis.
     - **DO NOT** provide a long self-introduction.
     - Ensure every generated message is slightly different to avoid spam flags.
+4. **Greeting**: If landlord name is known, address them by name (e.g., "Chào Trân").
+   If unknown, use "Chào anh/chị".
 
 ## Listing Context
+- Landlord name: {landlord_name}
 - Address: {address}
 - Price: {price}
 - Area: {area}
@@ -265,9 +319,9 @@ Your goal is to write a natural, concise Zalo message to a landlord or agent.
 {custom_notes_section}
 
 ## Message Examples (for style reference ONLY - do not copy verbatim):
-- "hello, em thấy tin phòng ở {district} giá {price}. Còn phòng không ạ?"
-- "chào anh, em quan tâm căn hộ {address}. Chiều nay em qua xem được không?"
-- "chị ơi, phòng {area} {district} còn cho thuê không? Cho em xin lịch xem nhé."
+- "Hi, I saw the room listing in {district} for {price}. Is it still available?"
+- "Hello, I'm interested in the apartment at {address}. Can I come see it this afternoon?"
+- "Hi, is the {area} room in {district} still for rent? When can I schedule a viewing?"
 
 Return ONLY the message text, with no extra explanation or markdown formatting."""
 
@@ -311,58 +365,102 @@ CRITERIA_INSTRUCTIONS: dict[str, str] = {
 
 GOAL_AREA_RESEARCH = """\
 ## Objective
-Research the neighbourhood around a specific address using Google Maps.
 
-## Address
-{address}
+Extract neighbourhood amenity data and synthesize a Street View visual assessment \
+for a specific address.
+
+## Target
+
+Google Maps (https://www.google.com/maps)
 
 ## Steps
-1. Navigate to Google Maps (maps.google.com).
-2. Search for the address: {address}
-3. Verify the location pin is correct and matches the address.
 
-4. For each of the following criteria, search "nearby" and collect results:
+1. **Navigate to Google Maps.**
 
-{criteria_instructions}
+2. **Enter the target address** in the main search box and press Enter.
 
-5. Enter Street View at or near the address pin.
-   - Look around 360 degrees.
-   - Walk 50-100m in each accessible direction from the pin.
-   - Describe: street/alley width, surface condition, cleanliness, building \
-facades, greenery/plants, lighting fixtures, security features (gates, cameras, \
-guards), noise level indicators, and general vibe.
-   - Capture screenshots at key angles (front of address, left, right, \
-alley entrance if applicable).
+3. **Wait for the left-hand information panel** to display the address \
+and for the red pin to drop on the map.
 
-## Output format
-Return ONLY a JSON object with the following structure:
+> **IMPORTANT:** You MUST remember the exact location and visual context of this red pin, \
+as you will need to return to it.
 
-{{"neighbourhood_assessment": {{
-  "address": "{address}",
+4. **Assess Amenities (Nearby Search):**
+   - Click the "Nearby" button (a magnifying glass icon in the left information panel).
+   - For each of the following criteria, type the query into the search box and press Enter:
+     {criteria_instructions}
+   - For each search, extract ONLY the top 3 relevant places from the left panel \
+(Name, Type, Distance, and any notable detail).
+   - Click the "X" in the search box or the "Back" arrow to return to the primary \
+address pin before searching the next criterion.
+
+5. **Enter Street View:**
+   - Return to the main address view. In the left panel, click the image thumbnail \
+overlaid with a circular arrow (labeled "Street View & 360°").
+   - **Fallback:** If that thumbnail is missing, drag the yellow "Pegman" icon \
+from the bottom right corner and drop it on the blue line nearest to the red pin.
+
+6. **Explore and Extract Visual Data:**
+   - Pan the camera 360 degrees to look at the target address, adjacent buildings, \
+and the street opposite.
+   - Walk 50-100m in both directions by clicking the white directional chevrons/arrows.
+   - Actively memorize the infrastructure (road width, surface), environment \
+(litter, greenery), structure conditions, and security features (lamps, gates, bars).
+   - Infer the noise and vibe based on traffic density and zoning (commercial vs residential).
+
+## Guardrails
+
+- Do NOT click on external website links for any businesses. Stay inside Google Maps.
+- Do NOT extract more than 3 places per amenity criterion to avoid timeouts.
+- Do NOT guess. If an attribute (like security features) is not visible, state "none visible".
+
+## Edge Cases
+
+- If no places are found for a nearby search, return an empty array `[]` for "places".
+- If Street View is completely unavailable for the address, set `street_view.description` \
+to "Street View not available for this location" and set all other `street_view` fields to `null`.
+
+## Output Format
+
+Return ONLY a JSON object matching this exact structure and using these sample values \
+as a guide for your data types. Do NOT wrap the JSON in markdown fences. \
+Do NOT include any conversational text.
+
+{{
+"neighbourhood_assessment": {{
+  "address": "<address>",
   "amenities": {{
-    <criterion_key>: {{
-      "places": [
-        {{"name": "Place Name", "type": "restaurant/clinic/school/etc", \
-"distance": "200m", "notes": "any relevant detail"}}
-      ],
-      "summary": "Brief assessment of this criterion"
+    "<criterion_key>": {{
+    "places": [
+    {{
+    "name": "Joe's Coffee Shop",
+    "type": "Cafe",
+    "distance": "150m",
+    "notes": "Closes at 5 PM"
     }}
-  }},
-  "street_view": {{
-    "description": "Detailed description of what you see in Street View",
-    "width": "narrow alley / medium street / wide road",
-    "condition": "good / fair / poor",
-    "cleanliness": "very clean / clean / average / dirty",
-    "greenery": "abundant / some / none",
-    "lighting": "well-lit / adequate / poor",
-    "security_features": "gates, cameras, guards, etc.",
-    "noise_level": "quiet / moderate / noisy",
-    "building_condition": "good repair / average / dilapidated",
-    "overall_vibe": "One sentence describing the feel of the neighbourhood"
+    ],
+    "summary": "Well-served by local cafes within walking distance."
+    }}
+    }},
+    "street_view": {{
+    "description": "Tree-lined, two-lane asphalt road. Well-paved sidewalks. \
+Adjacent single-family homes in good repair. No heavy traffic observed.",
+    "width": "medium street",
+    "condition": "good",
+    "cleanliness": "very clean",
+    "greenery": "abundant",
+    "lighting": "adequate",
+    "security_features": "none visible",
+    "noise_level": "quiet",
+    "building_condition": "good repair",
+    "overall_vibe": "A peaceful, well-maintained residential neighbourhood."
+    }}
   }}
-}}}}
+}}
 
-CRITICAL: Return valid JSON only. No markdown fences, no explanation."""
+## Address
+
+{address}"""
 
 
 RESEARCH_SCORING_PROMPT = """\
@@ -388,32 +486,32 @@ criterion on a 1-10 scale and provide a brief verdict.
 
 ## Instructions
 1. For each criterion, assign a score (integer 1-10).
-2. Provide 2-3 highlight bullet points in Vietnamese.
+2. Provide 2-3 highlight bullet points in English.
 3. Include detailed sub-findings as key-value pairs in a list format.
 4. Calculate the overall score as the average of all criteria scores, \
 rounded to one decimal.
-5. Write a verdict (1-2 sentences in Vietnamese) summarizing the \
+5. Write a verdict (1-2 sentences in English) summarizing the \
 neighbourhood's suitability for living.
 
 ## Output format
 Return ONLY a JSON object matching this EXACT structure:
 
 {{"overall": 8.2,
-  "verdict": "Lựa chọn tốt cho gia đình, hẻm yên tĩnh...",
+  "verdict": "Good choice for families, quiet alley...",
   "criteria": [
     {{
       "criterion_key": "food_shopping",
       "score": 9,
-      "label": "Ăn uống & Mua sắm",
-      "highlights": ["Mật độ quán ăn cao", "Có cửa hàng thực phẩm sạch"],
+      "label": "Food & Shopping",
+      "highlights": ["High density of restaurants", "Fresh food store available"],
       "details": [{{"key": "dining", "value": "..."}}, {{"key": "grocery", "value": "..."}}],
       "walking_distance": true
     }},
     {{
       "criterion_key": "healthcare",
       "score": 7,
-      "label": "Y tế",
-      "highlights": ["Phòng khám gần", "Nhà thuốc 24/7"],
+      "label": "Healthcare",
+      "highlights": ["Clinic nearby", "24/7 pharmacy"],
       "details": [{{"key": "hospital", "value": "..."}}, {{"key": "pharmacy", "value": "..."}}],
       "walking_distance": false
     }}

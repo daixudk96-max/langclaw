@@ -80,7 +80,7 @@ export function PipelineColumn({
         <div className="p-2 space-y-2">
           {listings.length === 0 ? (
             <div className="flex items-center justify-center h-32 m-2 border-2 border-dashed border-muted-foreground/20 rounded-md">
-              <p className="text-xs text-muted-foreground">Chưa có căn nào</p>
+              <p className="text-xs text-muted-foreground">No listings yet</p>
             </div>
           ) : (
             listings.map((listing) => (

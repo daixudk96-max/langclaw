@@ -13,7 +13,7 @@ export function ResearchActionBar() {
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border bg-background px-4 py-2.5 shadow-lg">
       <span className="text-sm font-medium tabular-nums">
-        {selectedIds.size} đã chọn
+        {selectedIds.size} selected
       </span>
 
       <div className="h-4 w-px bg-border" />
@@ -24,7 +24,7 @@ export function ResearchActionBar() {
         className="gap-1.5"
       >
         <MapPin className="h-3.5 w-3.5" />
-        Khảo sát khu vực
+        Research area
       </Button>
 
       <Button
@@ -34,7 +34,7 @@ export function ResearchActionBar() {
         className="gap-1"
       >
         <X className="h-3.5 w-3.5" />
-        Hủy chọn
+        Clear selection
       </Button>
     </div>
   );

@@ -51,10 +51,10 @@ export function ResearchConfigSheet({ campaignId }: ResearchConfigSheetProps) {
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-teal-500" />
-            Khảo sát khu vực
+            Area Research
           </SheetTitle>
           <SheetDescription>
-            Chọn tiêu chí đánh giá cho {selectedIds.size} tin đăng
+            Select evaluation criteria for {selectedIds.size} listings
           </SheetDescription>
         </SheetHeader>
 
@@ -62,7 +62,7 @@ export function ResearchConfigSheet({ campaignId }: ResearchConfigSheetProps) {
           {/* Criteria checkboxes */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium">Tiêu chí đánh giá</p>
+              <p className="text-sm font-medium">Evaluation criteria</p>
               <Badge variant="secondary" className="text-xs">
                 {enabledCount}/{criteria.length}
               </Badge>
@@ -94,14 +94,14 @@ export function ResearchConfigSheet({ campaignId }: ResearchConfigSheetProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">
-                  Tự động liên hệ chủ nhà
+                  Auto-contact landlord
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Tự động gửi tin khi điểm đạt ngưỡng
+                  Auto-send message when score reaches threshold
                 </p>
               </div>
               <Badge variant="outline" className="text-[10px]">
-                Sắp ra mắt
+                Coming soon
               </Badge>
             </div>
           </div>
@@ -114,13 +114,13 @@ export function ResearchConfigSheet({ campaignId }: ResearchConfigSheetProps) {
             onClick={handleStart}
             disabled={loading || enabledCount === 0}
           >
-            {loading ? "Đang bắt đầu..." : "Bắt đầu khảo sát"}
+            {loading ? "Starting..." : "Start research"}
           </Button>
           <Button
             variant="outline"
             onClick={() => setConfigSheetOpen(false)}
           >
-            Hủy
+            Cancel
           </Button>
         </div>
       </SheetContent>

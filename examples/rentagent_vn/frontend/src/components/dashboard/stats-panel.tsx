@@ -8,10 +8,10 @@ export function StatsPanel() {
   if (!stats) return null;
 
   const items = [
-    { label: "Tổng tin", value: stats.total_listings },
-    { label: "Mới hôm nay", value: stats.new_today },
-    { label: "Đã quét", value: stats.total_scans },
-    { label: "Chọn", value: stats.by_stage?.shortlisted || 0 },
+    { label: "Total", value: stats.total_listings },
+    { label: "New today", value: stats.new_today },
+    { label: "Scans", value: stats.total_scans },
+    { label: "Selected", value: stats.by_stage?.shortlisted || 0 },
   ];
 
   return (

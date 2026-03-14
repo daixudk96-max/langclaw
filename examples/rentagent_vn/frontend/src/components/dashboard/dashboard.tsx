@@ -73,7 +73,7 @@ export function Dashboard({ campaignId }: DashboardProps) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">
-          Đang tải...
+          Loading...
         </div>
       </div>
     );

@@ -115,7 +115,7 @@ export function ListingCard({ listing, selectable }: ListingCardProps) {
         {/* Info */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate">
-            {listing.title || "Không có tiêu đề"}
+            {listing.title || "No title"}
           </p>
 
           {/* Price */}
@@ -134,7 +134,7 @@ export function ListingCard({ listing, selectable }: ListingCardProps) {
             {listing.bedrooms != null && (
               <span className="flex items-center gap-0.5 shrink-0">
                 <Bed className="h-3 w-3" />
-                {listing.bedrooms}PN
+                {listing.bedrooms}BR
               </span>
             )}
             {listing.area_sqm != null && (
@@ -182,9 +182,9 @@ export function ListingCard({ listing, selectable }: ListingCardProps) {
 }
 
 function formatPrice(priceVnd: number | null): string {
-  if (!priceVnd) return "Liên hệ";
+  if (!priceVnd) return "Contact";
   if (priceVnd >= 1_000_000) {
-    return `${(priceVnd / 1_000_000).toFixed(1).replace(".0", "")} triệu/th`;
+    return `${(priceVnd / 1_000_000).toFixed(1).replace(".0", "")}M/mo`;
   }
-  return `${priceVnd.toLocaleString("vi-VN")} đ/th`;
+  return `${priceVnd.toLocaleString("en-US")}d/mo`;
 }

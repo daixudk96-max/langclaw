@@ -24,7 +24,7 @@ export function ResearchProgress({ research, compact }: ResearchProgressProps) {
         )}
       >
         <Clock className="h-3 w-3 text-muted-foreground animate-pulse" />
-        <span className="text-muted-foreground">Đang chờ...</span>
+        <span className="text-muted-foreground">Waiting...</span>
       </div>
     );
   }
@@ -39,7 +39,7 @@ export function ResearchProgress({ research, compact }: ResearchProgressProps) {
           )}
         >
           <Loader2 className="h-3 w-3 text-teal-500 animate-spin" />
-          <span className="text-teal-600">Đang khảo sát...</span>
+          <span className="text-teal-600">Researching...</span>
         </div>
         {!compact && (
           <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
@@ -73,7 +73,7 @@ export function ResearchProgress({ research, compact }: ResearchProgressProps) {
         )}
       >
         <AlertCircle className="h-3 w-3 text-red-500" />
-        <span className="text-red-600">Lỗi</span>
+        <span className="text-red-600">Error</span>
       </div>
     );
   }

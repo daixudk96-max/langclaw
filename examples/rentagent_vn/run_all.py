@@ -21,6 +21,7 @@ from examples.rentagent_vn.api.server import (
     set_research_trigger,
     set_scan_trigger,
 )
+from examples.rentagent_vn.auto_scanner import AutoScanner
 from examples.rentagent_vn.db import queries
 from examples.rentagent_vn.db.connection import init_db
 
@@ -49,12 +50,12 @@ async def _build_scan_trigger(app_module: Any) -> Any:
             if prefs.get("district"):
                 parts.append(prefs["district"])
             if prefs.get("bedrooms"):
-                parts.append(f"{prefs['bedrooms']} phòng ngủ")
+                parts.append(f"{prefs['bedrooms']} bedrooms")
             if prefs.get("max_price"):
-                parts.append(f"dưới {prefs['max_price']}")
+                parts.append(f"under {prefs['max_price']}")
             if prefs.get("property_type"):
                 parts.append(prefs["property_type"])
-            query = ", ".join(parts) if parts else "phòng trọ cho thuê"
+            query = ", ".join(parts) if parts else "apartment for rent"
 
         # Create scan record in DB
         runner = app_module.scrape_runner
@@ -66,7 +67,7 @@ async def _build_scan_trigger(app_module: Any) -> Any:
         await queries.add_activity(
             campaign_id,
             "scan_start",
-            f"Bắt đầu quét {len(sources)} nguồn...",
+            f"Starting scan on {len(sources)} sources...",
             scan_id=scan_id,
         )
 
@@ -233,6 +234,7 @@ async def main() -> None:
     """Start all services."""
     # Start Zalo service (optional)
     zalo_proc = _start_zalo_service()
+    auto_scanner: AutoScanner | None = None
 
     try:
         # Initialize database first
@@ -248,6 +250,10 @@ async def main() -> None:
         # Build and register the research trigger
         research_trigger = await _build_research_trigger(app_module)
         set_research_trigger(research_trigger)
+
+        # Start auto-scanner for campaigns with scan_frequency='auto'
+        auto_scanner = AutoScanner(trigger_scan=trigger)
+        await auto_scanner.start()
 
         # Create FastAPI app (skip lifespan DB init since we already did it)
         api_app = create_api_app()
@@ -272,6 +278,8 @@ async def main() -> None:
             app_module.app._run_async(),
         )
     finally:
+        if auto_scanner is not None:
+            await auto_scanner.stop()
         _stop_zalo_service()
 
 

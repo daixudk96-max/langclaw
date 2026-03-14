@@ -1,56 +1,113 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { SetupWizard } from "@/components/setup/setup-wizard";
-import { Dashboard } from "@/components/dashboard/dashboard";
+import { App } from "@/components/app/app";
 import { useCampaignStore } from "@/stores/campaign-store";
 
+const STORAGE_KEY = "rentagent_active_campaign_id";
+
 export default function Home() {
-  const { campaigns, fetchCampaigns } = useCampaignStore();
+  // Use selectors to avoid subscribing to entire store
+  const campaigns = useCampaignStore((s) => s.campaigns);
+  const fetchCampaigns = useCampaignStore((s) => s.fetchCampaigns);
+  const fetchAllStats = useCampaignStore((s) => s.fetchAllStats);
+
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const fetchCampaignsRef = useRef(fetchCampaigns);
-  fetchCampaignsRef.current = fetchCampaigns;
+  // Filter to only active campaigns
+  const activeCampaigns = campaigns.filter((c) => c.status === "active");
 
+  // Load campaigns and restore persisted selection
   useEffect(() => {
-    fetchCampaignsRef.current().then(() => setReady(true));
-  }, []); // Run once on mount
+    fetchCampaigns().then(() => setReady(true));
+  }, [fetchCampaigns]);
 
-  // Once campaigns are loaded, auto-select the first active one
+  // Once ready, restore from localStorage or pick first active
   useEffect(() => {
     if (!ready) return;
     if (activeCampaignId) return;
 
-    const active = campaigns.find((c) => c.status === "active");
-    if (active) {
-      setActiveCampaignId(active.id);
-    }
-  }, [ready, campaigns, activeCampaignId]);
+    const stored = localStorage.getItem(STORAGE_KEY);
+    const storedCampaign = stored
+      ? activeCampaigns.find((c) => c.id === stored)
+      : null;
 
-  // Show loading spinner only during initial campaign list fetch
+    const selected =
+      storedCampaign ?? activeCampaigns[0] ?? null;
+
+    if (selected) {
+      setActiveCampaignId(selected.id);
+    }
+  }, [ready, activeCampaigns, activeCampaignId]);
+
+  // Persist selection to localStorage
+  useEffect(() => {
+    if (activeCampaignId) {
+      localStorage.setItem(STORAGE_KEY, activeCampaignId);
+    }
+  }, [activeCampaignId]);
+
+  // Fetch stats for all active campaigns (for the dropdown)
+  useEffect(() => {
+    if (ready && activeCampaigns.length > 0) {
+      fetchAllStats(activeCampaigns.map((c) => c.id));
+    }
+  }, [ready, activeCampaigns, fetchAllStats]);
+
+  const handleSwitch = useCallback((campaignId: string) => {
+    setActiveCampaignId(campaignId);
+  }, []);
+
+  const handleCreateNew = useCallback(() => {
+    setIsCreating(true);
+  }, []);
+
+  const handleWizardComplete = useCallback((id: string) => {
+    setActiveCampaignId(id);
+    setIsCreating(false);
+  }, []);
+
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--cream)" }}>
         <div className="text-center space-y-2">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">Đang tải...</p>
+          <div
+            className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin mx-auto"
+            style={{ borderColor: "var(--terra)", borderTopColor: "transparent" }}
+          />
+          <p className="text-sm" style={{ color: "var(--ink-50)" }}>Loading...</p>
         </div>
       </div>
     );
   }
 
-  // No campaign? Show setup wizard
-  if (!activeCampaignId) {
+  // Show wizard if creating new campaign or no active campaigns
+  if (isCreating || activeCampaigns.length === 0) {
     return (
       <SetupWizard
-        onComplete={(id) => {
-          setActiveCampaignId(id);
-        }}
+        onComplete={handleWizardComplete}
       />
     );
   }
 
-  // Dashboard
-  return <Dashboard campaignId={activeCampaignId} />;
+  // Edge case: stored campaign was archived
+  if (!activeCampaignId || !activeCampaigns.find((c) => c.id === activeCampaignId)) {
+    const firstActive = activeCampaigns[0];
+    if (firstActive) {
+      setActiveCampaignId(firstActive.id);
+    }
+    return null;
+  }
+
+  return (
+    <App
+      campaignId={activeCampaignId}
+      campaigns={activeCampaigns}
+      onSwitch={handleSwitch}
+      onCreate={handleCreateNew}
+    />
+  );
 }

@@ -5,6 +5,7 @@
 export type PipelineStage =
   | "new"
   | "researching"
+  | "pending_review"
   | "contacted"
   | "viewing"
   | "viewed"
@@ -16,21 +17,22 @@ export const PIPELINE_STAGES: {
   label: string;
   color: string;
 }[] = [
-  { key: "new", label: "Mới", color: "bg-blue-500" },
-  { key: "researching", label: "Đang khảo sát", color: "bg-teal-500" },
-  { key: "contacted", label: "Đã liên hệ", color: "bg-yellow-500" },
-  { key: "viewing", label: "Hẹn xem", color: "bg-orange-500" },
-  { key: "viewed", label: "Đã xem", color: "bg-purple-500" },
-  { key: "shortlisted", label: "Chọn", color: "bg-green-500" },
-  { key: "skipped", label: "Bỏ qua", color: "bg-muted-foreground" },
+  { key: "new", label: "New", color: "bg-blue-500" },
+  { key: "researching", label: "Researching", color: "bg-teal-500" },
+  { key: "pending_review", label: "Pending Review", color: "bg-amber-500" },
+  { key: "contacted", label: "Contacted", color: "bg-yellow-500" },
+  { key: "viewing", label: "Viewing", color: "bg-orange-500" },
+  { key: "viewed", label: "Viewed", color: "bg-purple-500" },
+  { key: "shortlisted", label: "Shortlisted", color: "bg-green-500" },
+  { key: "skipped", label: "Skipped", color: "bg-muted-foreground" },
 ];
 
 export const SKIP_REASONS = [
-  { key: "too_far", label: "Quá xa" },
-  { key: "price", label: "Giá không hợp" },
-  { key: "bad_photos", label: "Ảnh xấu" },
-  { key: "wrong_area", label: "Sai khu vực" },
-  { key: "other", label: "Khác" },
+  { key: "too_far", label: "Too far" },
+  { key: "price", label: "Price mismatch" },
+  { key: "bad_photos", label: "Poor photos" },
+  { key: "wrong_area", label: "Wrong area" },
+  { key: "other", label: "Other" },
 ] as const;
 
 export type SkipReasonKey = (typeof SKIP_REASONS)[number]["key"];
@@ -84,6 +86,13 @@ export interface Campaign {
   updated_at: string;
 }
 
+export interface NotificationSettings {
+  new_listings: boolean;
+  research_done: boolean;
+  price_drop: boolean;
+  outreach_reminder: boolean;
+}
+
 export interface CampaignPreferences {
   district?: string;
   city?: string;
@@ -95,6 +104,8 @@ export interface CampaignPreferences {
   max_area?: number;
   property_type?: string;
   notes?: string;
+  outreach_auto_send?: boolean;
+  notification_settings?: NotificationSettings;
   [key: string]: unknown;
 }
 
@@ -166,6 +177,7 @@ export type ScanSSEEventType =
   | "started"
   | "progress"
   | "streaming_url"
+  | "url_complete"
   | "error"
   | "complete"
   | "done";
@@ -182,6 +194,7 @@ export interface ScanSSEEvent {
   job_id?: string; // started
   total_urls?: number; // started
   urls?: string[]; // started
+  listings_count?: number; // url_complete
   listings_found?: number; // complete
   errors?: number; // complete
   urls_scanned?: number; // complete
@@ -211,6 +224,7 @@ export interface ScanStreamState {
   activeUrl: string | null;
   totalUrls: number;
   completedUrls: number;
+  completedSourceUrls: Set<string>;
   listingsFound: number;
   startedAt: number | null;
 }
@@ -247,10 +261,10 @@ export interface OutreachMessage {
 }
 
 export const OUTREACH_STATUS_LABELS: Record<OutreachStatus, string> = {
-  drafted: "Đã soạn tin",
-  sent: "Đã gửi",
-  failed: "Lỗi",
-  replied: "Đã phản hồi",
+  drafted: "Drafted",
+  sent: "Sent",
+  failed: "Failed",
+  replied: "Replied",
 };
 
 // ---------------------------------------------------------------------------
@@ -318,44 +332,44 @@ export interface AutoOutreachConfig {
 export const DEFAULT_CRITERIA: ResearchCriteriaOption[] = [
   {
     key: "food_shopping",
-    label: "Ăn uống & Mua sắm",
-    description: "Nhà hàng, siêu thị, cửa hàng tiện lợi",
+    label: "Food & Shopping",
+    description: "Restaurants, supermarkets, convenience stores",
     enabled: true,
   },
   {
     key: "healthcare",
-    label: "Y tế",
-    description: "Bệnh viện, phòng khám, nhà thuốc",
+    label: "Healthcare",
+    description: "Hospitals, clinics, pharmacies",
     enabled: true,
   },
   {
     key: "education_family",
-    label: "Giáo dục & Gia đình",
-    description: "Trường học, nhà trẻ, mầm non",
+    label: "Education & Family",
+    description: "Schools, daycare, kindergarten",
     enabled: true,
   },
   {
     key: "transportation",
-    label: "Giao thông",
-    description: "Trạm xe buýt, metro, đường lớn",
+    label: "Transportation",
+    description: "Bus stops, metro, main roads",
     enabled: true,
   },
   {
     key: "entertainment_sports",
-    label: "Giải trí & Thể thao",
-    description: "Phòng gym, công viên, rạp chiếu phim",
+    label: "Entertainment & Sports",
+    description: "Gyms, parks, cinemas",
     enabled: true,
   },
   {
     key: "street_atmosphere",
-    label: "Đường phố & Vệ sinh",
-    description: "Đánh giá qua Street View: đường, vệ sinh, cây xanh",
+    label: "Street & Cleanliness",
+    description: "Street View assessment: roads, cleanliness, greenery",
     enabled: true,
   },
   {
     key: "security",
-    label: "An ninh",
-    description: "Cổng, camera, bảo vệ, ánh sáng",
+    label: "Security",
+    description: "Gates, cameras, guards, lighting",
     enabled: true,
   },
 ];

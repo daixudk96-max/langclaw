@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   MapPin,
   Phone,
@@ -60,9 +60,42 @@ export function ListingDetail({
   const [saving, setSaving] = useState(false);
   const [outreachHistory, setOutreachHistory] = useState<OutreachMessage[]>([]);
 
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialMount = useRef(true);
+
   useEffect(() => {
     api.getOutreachHistory(campaignId, listing.id).then(setOutreachHistory).catch(() => {});
   }, [campaignId, listing.id]);
+
+  useEffect(() => {
+    setNotes(listing.user_notes || "");
+    isInitialMount.current = true;
+  }, [listing.id]);
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      if (notes !== (listing.user_notes || "")) {
+        setSaving(true);
+        await updateNotes(campaignId, listing.id, notes);
+        setSaving(false);
+      }
+    }, 2000);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [notes, listing.user_notes, listing.id, campaignId, updateNotes]);
 
   const latestOutreach = outreachHistory[0];
   const outreachStatus = latestOutreach?.status;
@@ -76,6 +109,9 @@ export function ListingDetail({
   };
 
   const handleNotesBlur = async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
     if (notes !== (listing.user_notes || "")) {
       setSaving(true);
       await updateNotes(campaignId, listing.id, notes);
@@ -89,7 +125,7 @@ export function ListingDetail({
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="text-lg pr-6 leading-tight">
-              {listing.title?.replace(/\s*·\s*null/gi, '').replace(/null\s*·\s*/gi, '').trim() || "Chi tiết tin đăng"}
+              {listing.title?.replace(/\s*·\s*null/gi, '').replace(/null\s*·\s*/gi, '').trim() || "Listing details"}
             </SheetTitle>
           </SheetHeader>
 
@@ -99,21 +135,21 @@ export function ListingDetail({
               <div className="w-full aspect-video rounded-xl overflow-hidden bg-muted border">
                 <img
                   src={listing.thumbnail_url}
-                  alt={listing.title || "Hình ảnh bất động sản"}
+                  alt={listing.title || "Property image"}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                     const parent = (e.target as HTMLImageElement).parentElement;
                     if (parent) {
                       parent.classList.add('flex', 'items-center', 'justify-center');
-                      parent.innerHTML = '<span class="text-muted-foreground text-sm">Không tải được hình</span>';
+                      parent.innerHTML = '<span class="text-muted-foreground text-sm">Failed to load image</span>';
                     }
                   }}
                 />
               </div>
             ) : (
               <div className="w-full aspect-video rounded-xl bg-muted border flex items-center justify-center text-muted-foreground text-sm">
-                Chưa có hình ảnh
+                No image available
               </div>
             )}
 
@@ -124,7 +160,7 @@ export function ListingDetail({
               </p>
               {listing.deposit_vnd && (
                 <p className="text-sm text-muted-foreground">
-                  Cọc: {formatPrice(listing.deposit_vnd)}
+                  Deposit: {formatPrice(listing.deposit_vnd)}
                 </p>
               )}
             </div>
@@ -134,28 +170,28 @@ export function ListingDetail({
               {listing.area_sqm != null && (
                 <InfoItem
                   icon={<Maximize2 className="h-4 w-4" />}
-                  label="Diện tích"
+                  label="Area"
                   value={`${listing.area_sqm} m²`}
                 />
               )}
               {listing.bedrooms != null && (
                 <InfoItem
                   icon={<Bed className="h-4 w-4" />}
-                  label="Phòng ngủ"
-                  value={`${listing.bedrooms} PN`}
+                  label="Bedrooms"
+                  value={`${listing.bedrooms} BR`}
                 />
               )}
               {listing.bathrooms != null && (
                 <InfoItem
                   icon={<Bath className="h-4 w-4" />}
-                  label="Phòng tắm"
-                  value={`${listing.bathrooms} PT`}
+                  label="Bathrooms"
+                  value={`${listing.bathrooms} BA`}
                 />
               )}
               {listing.district && (
                 <InfoItem
                   icon={<MapPin className="h-4 w-4" />}
-                  label="Khu vực"
+                  label="District"
                   value={listing.district}
                 />
               )}
@@ -164,7 +200,7 @@ export function ListingDetail({
             {/* Address */}
             {listing.address && (
               <div>
-                <p className="text-sm font-medium mb-1">Địa chỉ</p>
+                <p className="text-sm font-medium mb-1">Address</p>
                 <p className="text-sm text-muted-foreground">
                   {listing.address}
                 </p>
@@ -203,7 +239,7 @@ export function ListingDetail({
               <>
                 <Separator />
                 <div>
-                  <p className="text-sm font-medium mb-1">Mô tả</p>
+                  <p className="text-sm font-medium mb-1">Description</p>
                   <p className="text-sm text-muted-foreground whitespace-pre-line line-clamp-6">
                     {listing.description}
                   </p>
@@ -215,7 +251,7 @@ export function ListingDetail({
 
             {/* Status */}
             <div>
-              <p className="text-sm font-medium mb-2">Trạng thái</p>
+              <p className="text-sm font-medium mb-2">Status</p>
               <div className="flex gap-2">
                 <Select
                   value={listing.stage}
@@ -237,25 +273,25 @@ export function ListingDetail({
               </div>
               {listing.skip_reason && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Lý do bỏ qua: {listing.skip_reason}
+                  Skip reason: {listing.skip_reason}
                 </p>
               )}
             </div>
 
             {/* Notes */}
             <div>
-              <p className="text-sm font-medium mb-1.5">Ghi chú</p>
+              <p className="text-sm font-medium mb-1.5">Notes</p>
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 onBlur={handleNotesBlur}
-                placeholder="Thêm ghi chú riêng cho tin này..."
+                placeholder="Add your notes for this listing..."
                 rows={3}
                 className="text-sm"
               />
               {saving && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Đang lưu...
+                  Saving...
                 </p>
               )}
             </div>
@@ -265,7 +301,7 @@ export function ListingDetail({
             {/* Contact Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold">Liên hệ</p>
+                <p className="text-sm font-semibold">Contact</p>
                 {outreachStatus && (
                   <Badge
                     variant={outreachStatus === "sent" || outreachStatus === "replied" ? "default" : "secondary"}
@@ -284,7 +320,7 @@ export function ListingDetail({
               {listing.landlord_phone && (
                 <Button onClick={() => setOutreachOpen(true)} className="w-full" size="lg">
                   <Send className="h-4 w-4 mr-2" />
-                  Liên hệ chủ nhà
+                  Contact landlord
                 </Button>
               )}
 
@@ -295,7 +331,7 @@ export function ListingDetail({
                     <Button variant="outline" size="sm" asChild>
                       <a href={`tel:${listing.landlord_phone}`}>
                         <Phone className="h-3.5 w-3.5 mr-1.5" />
-                        Gọi điện
+                        Call
                       </a>
                     </Button>
                     <Button variant="outline" size="sm" asChild>
@@ -334,7 +370,7 @@ export function ListingDetail({
                   </Badge>
                 )}
                 {listing.posted_date && (
-                  <span>Đăng: {listing.posted_date}</span>
+                  <span>Posted: {listing.posted_date}</span>
                 )}
               </div>
               {listing.listing_url && (
@@ -345,7 +381,7 @@ export function ListingDetail({
                     rel="noopener noreferrer"
                   >
                     <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                    Xem bài gốc
+                    View original
                   </a>
                 </Button>
               )}
@@ -404,9 +440,9 @@ function InfoItem({
 }
 
 function formatPrice(priceVnd: number | null): string {
-  if (!priceVnd) return "Liên hệ";
+  if (!priceVnd) return "Contact";
   if (priceVnd >= 1_000_000) {
-    return `${(priceVnd / 1_000_000).toFixed(1).replace(".0", "")} triệu/tháng`;
+    return `${(priceVnd / 1_000_000).toFixed(1).replace(".0", "")}M/month`;
   }
-  return `${priceVnd.toLocaleString("vi-VN")} đ/tháng`;
+  return `${priceVnd.toLocaleString("en-US")}d/month`;
 }

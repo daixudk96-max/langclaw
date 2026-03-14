@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   MapPin,
   RefreshCw,
-  Send,
   ChevronDown,
   ExternalLink,
 } from "lucide-react";
@@ -18,7 +17,7 @@ import {
 } from "@/components/ui/collapsible";
 import { ScoreBadge } from "./score-badge";
 import { CriteriaScores } from "./criteria-scores";
-import type { AreaResearch, PipelineStage } from "@/types";
+import type { AreaResearch } from "@/types";
 import { useListingStore } from "@/stores/listing-store";
 import { useResearchStore } from "@/stores/research-store";
 
@@ -36,17 +35,12 @@ export function ResearchResults({
   const [activeTab, setActiveTab] = useState<"overview" | "details" | "street">(
     "overview"
   );
-  const { updateStage, fetchListings } = useListingStore();
+  const { fetchListings } = useListingStore();
   const { retryResearch } = useResearchStore();
 
   if (research.status !== "done" || !research.scores) return null;
 
   const { scores, verdict, overall_score } = research;
-
-  const handleMoveStage = async (stage: PipelineStage) => {
-    await updateStage(campaignId, listingId, stage);
-    await fetchListings(campaignId);
-  };
 
   const handleRetry = async () => {
     await retryResearch(campaignId, research.id);
@@ -54,8 +48,8 @@ export function ResearchResults({
   };
 
   const tabs = [
-    { key: "overview" as const, label: "Tổng quan" },
-    { key: "details" as const, label: "Chi tiết" },
+    { key: "overview" as const, label: "Overview" },
+    { key: "details" as const, label: "Details" },
     ...(research.street_view_urls.length > 0
       ? [{ key: "street" as const, label: "Street View" }]
       : []),
@@ -67,7 +61,7 @@ export function ResearchResults({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MapPin className="h-4 w-4 text-teal-500" />
-          <span className="text-sm font-medium">Kết quả khảo sát</span>
+          <span className="text-sm font-medium">Research results</span>
         </div>
         {overall_score != null && <ScoreBadge score={overall_score} size="lg" />}
       </div>
@@ -99,7 +93,7 @@ export function ResearchResults({
               <Separator />
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">
-                  Nhận xét
+                  Verdict
                 </p>
                 <p className="text-sm leading-relaxed">{verdict}</p>
               </div>
@@ -122,7 +116,7 @@ export function ResearchResults({
                       variant="outline"
                       className="text-[10px] h-4 px-1 text-green-600"
                     >
-                      Đi bộ
+                      Walking
                     </Badge>
                   )}
                 </div>
@@ -188,20 +182,12 @@ export function ResearchResults({
       {/* Action buttons */}
       <div className="flex gap-2">
         <Button
-          size="sm"
-          className="flex-1"
-          onClick={() => handleMoveStage("contacted")}
-        >
-          <Send className="h-3.5 w-3.5 mr-1.5" />
-          Liên hệ ngay
-        </Button>
-        <Button
           variant="outline"
           size="sm"
           onClick={handleRetry}
         >
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-          Khảo sát lại
+          Research again
         </Button>
       </div>
     </div>

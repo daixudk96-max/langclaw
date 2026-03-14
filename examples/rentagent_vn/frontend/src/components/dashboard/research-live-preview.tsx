@@ -22,7 +22,7 @@ export function ResearchLivePreview({
           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-teal-500" />
         </span>
         <span className="text-xs text-teal-700 dark:text-teal-400 truncate max-w-[200px]">
-          {currentDetail || "Đang khảo sát..."}
+          {currentDetail || "Researching..."}
         </span>
       </div>
 
@@ -37,7 +37,7 @@ export function ResearchLivePreview({
       ) : (
         <div className="w-full h-40 rounded-md border bg-muted/50 animate-pulse flex items-center justify-center">
           <span className="text-xs text-muted-foreground">
-            Đang chờ live preview...
+            Waiting for live preview...
           </span>
         </div>
       )}

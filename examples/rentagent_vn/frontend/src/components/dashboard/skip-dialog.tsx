@@ -29,7 +29,7 @@ export function SkipDialog({ open, onClose, onSkip }: SkipDialogProps) {
     setSubmitting(true);
     const reason =
       selected === "other"
-        ? otherText || "Khác"
+        ? otherText || "Other"
         : SKIP_REASONS.find((r) => r.key === selected)?.label || selected;
     await onSkip(reason);
     setSubmitting(false);
@@ -41,7 +41,7 @@ export function SkipDialog({ open, onClose, onSkip }: SkipDialogProps) {
     <Dialog open={open} onOpenChange={() => onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Bỏ qua tin này?</DialogTitle>
+          <DialogTitle>Skip this listing?</DialogTitle>
         </DialogHeader>
 
         <RadioGroup
@@ -68,17 +68,17 @@ export function SkipDialog({ open, onClose, onSkip }: SkipDialogProps) {
           <Input
             value={otherText}
             onChange={(e) => setOtherText(e.target.value)}
-            placeholder="Lý do khác..."
+            placeholder="Other reason..."
             className="mt-2"
           />
         )}
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={submitting}>
-            Hủy
+            Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Đang lưu..." : "Bỏ qua"}
+            {submitting ? "Saving..." : "Skip"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -83,7 +83,7 @@ export class WebSocketManager {
     this.ws = null;
   }
 
-  send(content: string): void {
+  send(content: string, metadata?: Record<string, unknown>): void {
     if (this.ws?.readyState !== WebSocket.OPEN) {
       console.warn("WebSocket not connected, cannot send");
       return;
@@ -94,6 +94,7 @@ export class WebSocketManager {
         content,
         user_id: this.userId,
         context_id: this.contextId,
+        metadata,
       })
     );
   }

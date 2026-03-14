@@ -120,18 +120,29 @@ app.agent(
 )
 ```
 
-Users switch via the built-in `/switch` command (registered automatically):
+Users interact via the built-in `/agent` command (registered automatically):
 
 ```
-/switch researcher   → activate researcher agent (isolated thread)
-/switch default      → return to main agent
-/switch              → list all agents with active marker
+/agent                          → list all agents with active marker
+/agent researcher               → switch to researcher agent (persistent)
+/agent default                  → return to main agent
+/agent researcher What is X?    → one-off message to researcher (no session change)
+```
+
+WebSocket clients can also specify the target agent via metadata:
+
+```json
+{
+  "type": "message",
+  "content": "Summarize the quarterly report",
+  "metadata": { "agent_name": "researcher" }
+}
 ```
 
 **`_resolve_agent_name` priority order** (in `gateway/manager.py`):
 1. `msg.metadata["agent_name"]` — stamped by cron at schedule time (deterministic, restart-safe)
 2. Phase 2 `agent_resolver` hook — auto-routing (not yet implemented; stub in `_resolve_agent_name`)
-3. `SessionManager.get_active_agent()` — set by `/switch` (per user, in-memory)
+3. `SessionManager.get_active_agent()` — set by `/agent` (per user, in-memory)
 4. `"default"` — fallback
 
 **Cron + named agents:** The cron tool derives `agent_name` from `ctx.context_id`
@@ -207,14 +218,14 @@ logger.error(f"Failed to connect: {exc}")
 
 ### Commands vs Tools
 
-- **Commands** (`/start`, `/reset`, `/help`, `/switch`): Fast system ops, bypass bus and LLM entirely
+- **Commands** (`/start`, `/reset`, `/help`, `/agent`): Fast system ops, bypass bus and LLM entirely
 - **Tools**: LLM-invoked functions, go through full middleware pipeline
 
 Don't implement user-facing quick actions as tools — use `@app.command()`.
 
-`/switch` is registered automatically by `GatewayManager._setup_switch_command()` as a closure
-when at least one named agent exists. It calls `SessionManager.set_active_agent()` and requires
-no changes to `gateway/commands.py`.
+`/agent` is registered automatically by `GatewayManager._setup_agent_command()` as a closure
+when at least one named agent exists. It calls `SessionManager.set_active_agent()` for persistent
+switches and publishes directly to the bus for one-off messages.
 
 ## Testing
 

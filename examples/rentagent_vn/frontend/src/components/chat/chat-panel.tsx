@@ -37,16 +37,16 @@ export function ChatPanel({ open, onClose, contextId }: ChatPanelProps) {
       <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0">
         <SheetHeader className="px-4 py-3 border-b">
           <div className="flex items-center justify-between">
-            <SheetTitle className="text-base">Chat với trợ lý</SheetTitle>
+            <SheetTitle className="text-base">Chat with assistant</SheetTitle>
             <Badge
               variant={wsStatus === "connected" ? "default" : "secondary"}
               className="text-xs"
             >
               {wsStatus === "connected"
-                ? "Đã kết nối"
+                ? "Connected"
                 : wsStatus === "connecting"
-                ? "Đang kết nối..."
-                : "Mất kết nối"}
+                ? "Connecting..."
+                : "Disconnected"}
             </Badge>
           </div>
         </SheetHeader>
@@ -55,7 +55,7 @@ export function ChatPanel({ open, onClose, contextId }: ChatPanelProps) {
           <div className="space-y-3">
             {messages.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-8">
-                Hỏi trợ lý bất cứ điều gì về chiến dịch tìm phòng.
+                Ask the assistant anything about your rental search.
               </p>
             )}
             {messages.map((msg) => (
@@ -64,7 +64,7 @@ export function ChatPanel({ open, onClose, contextId }: ChatPanelProps) {
             {isTyping && (
               <div className="flex justify-start">
                 <div className="bg-muted rounded-lg px-3 py-2 text-sm">
-                  <span className="animate-pulse">Đang trả lời...</span>
+                  <span className="animate-pulse">Typing...</span>
                 </div>
               </div>
             )}

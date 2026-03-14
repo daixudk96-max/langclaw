@@ -33,6 +33,12 @@ async def init_db(db_path: str | None = None) -> None:
     # Migrations: add columns that may not exist in older databases
     migrations = [
         "ALTER TABLE listings ADD COLUMN research_id TEXT REFERENCES area_research(id)",
+        # Auto-scan schedule columns (added for scheduled scanning feature)
+        "ALTER TABLE campaigns ADD COLUMN \
+            auto_scan_hour INTEGER NOT NULL DEFAULT 6",
+        "ALTER TABLE campaigns ADD COLUMN \
+            auto_scan_timezone TEXT NOT NULL DEFAULT 'Asia/Ho_Chi_Minh'",
+        "ALTER TABLE campaigns ADD COLUMN last_auto_scan_date TEXT",
     ]
     for sql in migrations:
         try:

@@ -15,10 +15,10 @@ export function ScanControls({ campaignId }: ScanControlsProps) {
   const handleScan = async () => {
     try {
       await triggerScan(campaignId);
-      toast.success("Đã bắt đầu quét. Kết quả sẽ có trong vài phút.");
+      toast.success("Scan started. Results will be ready in a few minutes.");
       // Data refresh is handled by the SSE stream completion in dashboard.tsx
     } catch {
-      toast.error("Không thể quét lúc này. Thử lại sau.");
+      toast.error("Cannot scan right now. Try again later.");
     }
   };
 
@@ -32,12 +32,12 @@ export function ScanControls({ campaignId }: ScanControlsProps) {
       {isScanning ? (
         <>
           <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-          Đang quét...
+          Scanning...
         </>
       ) : (
         <>
           <RefreshCw className="h-4 w-4 mr-1.5" />
-          Quét ngay
+          Scan now
         </>
       )}
     </Button>

@@ -200,13 +200,13 @@ RESEARCH_CRITERIA_KEYS = [
 ]
 
 RESEARCH_CRITERIA_LABELS: dict[str, str] = {
-    "food_shopping": "Ăn uống & Mua sắm",
-    "healthcare": "Y tế",
-    "education_family": "Giáo dục & Gia đình",
-    "transportation": "Giao thông",
-    "entertainment_sports": "Giải trí & Thể thao",
-    "street_atmosphere": "Đường phố & Vệ sinh",
-    "security": "An ninh",
+    "food_shopping": "Food & Shopping",
+    "healthcare": "Healthcare",
+    "education_family": "Education & Family",
+    "transportation": "Transportation",
+    "entertainment_sports": "Entertainment & Sports",
+    "street_atmosphere": "Street & Cleanliness",
+    "security": "Security",
 }
 
 

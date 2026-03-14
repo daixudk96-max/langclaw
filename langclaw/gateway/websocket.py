@@ -89,6 +89,10 @@ class WebSocketChannel(BaseChannel):
 
         import websockets.asyncio.server as ws_server
 
+        # Browser refreshes abort the WS handshake mid-flight; websockets logs
+        # this as ERROR, but it is harmless expected behaviour.
+        logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
+
         self._server = await ws_server.serve(
             self._handler,
             host=self._config.host,
@@ -198,6 +202,8 @@ class WebSocketChannel(BaseChannel):
                     if isinstance(a, dict)
                 ]
 
+                # Merge client metadata (allows agent_name passthrough)
+                client_metadata = data.get("metadata") or {}
                 await self._bus.publish(
                     InboundMessage(
                         channel=self.name,
@@ -209,6 +215,7 @@ class WebSocketChannel(BaseChannel):
                         attachments=attachments,
                         metadata={
                             "platform": "websocket",
+                            **client_metadata,
                         },
                     )
                 )

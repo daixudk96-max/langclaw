@@ -62,10 +62,10 @@ export function ZaloSettingsDialog({ open, onClose }: ZaloSettingsDialogProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageCircle className="h-5 w-5" />
-            Cài đặt Zalo
+            Zalo Settings
           </DialogTitle>
           <DialogDescription>
-            Kết nối tài khoản Zalo để gửi tin nhắn cho chủ nhà trực tiếp từ ứng dụng.
+            Connect your Zalo account to send messages to landlords directly from the app.
           </DialogDescription>
         </DialogHeader>
 
@@ -79,11 +79,11 @@ export function ZaloSettingsDialog({ open, onClose }: ZaloSettingsDialogProps) {
             )}
             <div className="flex-1">
               <p className="text-sm font-medium">
-                {isConnected ? "Đã kết nối" : "Chưa kết nối"}
+                {isConnected ? "Connected" : "Not connected"}
               </p>
               {isConnected && status?.phone_number && (
                 <p className="text-xs text-muted-foreground">
-                  SĐT: {status.phone_number}
+                  Phone: {status.phone_number}
                 </p>
               )}
             </div>
@@ -102,7 +102,7 @@ export function ZaloSettingsDialog({ open, onClose }: ZaloSettingsDialogProps) {
           {isConnected ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Tài khoản Zalo của bạn đã được kết nối. Bạn có thể gửi tin nhắn cho chủ nhà từ chi tiết tin đăng.
+                Your Zalo account is connected. You can send messages to landlords from listing details.
               </p>
               <Button
                 variant="outline"
@@ -110,14 +110,14 @@ export function ZaloSettingsDialog({ open, onClose }: ZaloSettingsDialogProps) {
                 disabled={connecting}
                 className="w-full"
               >
-                {connecting ? "Đang ngắt kết nối..." : "Ngắt kết nối"}
+                {connecting ? "Disconnecting..." : "Disconnect"}
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="cookie">Cookie Zalo</Label>
+                  <Label htmlFor="cookie">Zalo Cookie</Label>
                   <Textarea
                     id="cookie"
                     value={cookie}
@@ -133,7 +133,7 @@ export function ZaloSettingsDialog({ open, onClose }: ZaloSettingsDialogProps) {
                     id="imei"
                     value={imei}
                     onChange={(e) => setImei(e.target.value)}
-                    placeholder="Nhập IMEI từ DevTools"
+                    placeholder="Enter IMEI from DevTools"
                     className="font-mono text-xs"
                   />
                 </div>
@@ -151,13 +151,13 @@ export function ZaloSettingsDialog({ open, onClose }: ZaloSettingsDialogProps) {
               </div>
 
               <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs font-medium mb-2">Cách lấy thông tin đăng nhập:</p>
+                <p className="text-xs font-medium mb-2">How to get login info:</p>
                 <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-                  <li>Mở chat.zalo.me trên Chrome</li>
-                  <li>Nhấn F12 để mở DevTools</li>
-                  <li>Chọn tab Application → Cookies</li>
-                  <li>Copy tất cả cookies dạng JSON</li>
-                  <li>IMEI có thể lấy từ Network tab khi gửi tin nhắn</li>
+                  <li>Open chat.zalo.me in Chrome</li>
+                  <li>Press F12 to open DevTools</li>
+                  <li>Select Application tab → Cookies</li>
+                  <li>Copy all cookies as JSON</li>
+                  <li>IMEI can be found in Network tab when sending a message</li>
                 </ol>
               </div>
             </div>
@@ -166,14 +166,14 @@ export function ZaloSettingsDialog({ open, onClose }: ZaloSettingsDialogProps) {
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
-            {isConnected ? "Đóng" : "Hủy"}
+            {isConnected ? "Close" : "Cancel"}
           </Button>
           {!isConnected && (
             <Button
               onClick={handleConnect}
               disabled={connecting || !cookie.trim() || !imei.trim()}
             >
-              {connecting ? "Đang kết nối..." : "Kết nối"}
+              {connecting ? "Connecting..." : "Connect"}
             </Button>
           )}
         </DialogFooter>

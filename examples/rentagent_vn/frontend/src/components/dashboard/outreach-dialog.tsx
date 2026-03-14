@@ -104,7 +104,7 @@ export function OutreachDialog({
     } catch (e) {
       const errorMessage = (e as Error).message;
       if (errorMessage.includes("ZALO_NOT_CONNECTED")) {
-        setError("Phiên Zalo đã hết hạn. Vui lòng kết nối lại.");
+        setError("Zalo session expired. Please reconnect.");
       } else {
         setError(errorMessage);
       }
@@ -124,11 +124,11 @@ export function OutreachDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Send className="h-5 w-5" />
-            Liên hệ chủ nhà
+            Contact landlord
           </DialogTitle>
           {listing.landlord_phone && (
             <DialogDescription>
-              Gửi tin nhắn Zalo đến {listing.landlord_name || listing.landlord_phone}
+              Send Zalo message to {listing.landlord_name || listing.landlord_phone}
             </DialogDescription>
           )}
         </DialogHeader>
@@ -138,7 +138,7 @@ export function OutreachDialog({
             <div className="flex flex-col items-center justify-center py-8 gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Đang kiểm tra kết nối Zalo...
+                Checking Zalo connection...
               </p>
             </div>
           ) : !isConnected ? (
@@ -146,18 +146,18 @@ export function OutreachDialog({
               <Alert>
                 <MessageCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Bạn cần kết nối tài khoản Zalo để gửi tin nhắn cho chủ nhà.
+                  You need to connect your Zalo account to send messages to landlords.
                 </AlertDescription>
               </Alert>
               <Button onClick={handleConnectClick} className="w-full">
-                Kết nối Zalo
+                Connect Zalo
               </Button>
             </div>
           ) : loading ? (
             <div className="flex flex-col items-center justify-center py-8 gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Đang soạn tin nhắn...
+                Drafting message...
               </p>
             </div>
           ) : error ? (
@@ -167,14 +167,14 @@ export function OutreachDialog({
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
               <Button onClick={loadOrCreateDraft} variant="outline" className="w-full">
-                Thử lại
+                Retry
               </Button>
             </div>
           ) : outreach ? (
             <div className="space-y-3">
               <div className="rounded-lg bg-muted/50 p-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-medium">Gửi đến:</span>
+                  <span className="text-xs font-medium">Send to:</span>
                   <span className="text-xs text-muted-foreground">
                     {listing.landlord_phone}
                   </span>
@@ -187,16 +187,16 @@ export function OutreachDialog({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Nội dung tin nhắn</label>
+                <label className="text-sm font-medium">Message content</label>
                 <Textarea
                   value={editedText}
                   onChange={(e) => setEditedText(e.target.value)}
                   rows={4}
                   className="resize-none"
-                  placeholder="Nội dung tin nhắn..."
+                  placeholder="Message content..."
                 />
                 <p className="text-xs text-muted-foreground">
-                  Bạn có thể chỉnh sửa tin nhắn trước khi gửi
+                  You can edit the message before sending
                 </p>
               </div>
             </div>
@@ -205,7 +205,7 @@ export function OutreachDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={sending}>
-            Hủy
+            Cancel
           </Button>
           {isConnected && outreach && (
             <Button
@@ -215,12 +215,12 @@ export function OutreachDialog({
               {sending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Đang gửi...
+                  Sending...
                 </>
               ) : (
                 <>
                   <Send className="h-4 w-4 mr-2" />
-                  Gửi tin nhắn
+                  Send
                 </>
               )}
             </Button>

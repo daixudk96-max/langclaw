@@ -38,13 +38,13 @@ export function ScanProgressPanel() {
             {status === "complete" && (
               <Check className="h-4 w-4 text-green-600" />
             )}
-            {status === "connecting" && "Đang kết nối..."}
-            {status === "streaming" && "Đang quét..."}
-            {status === "complete" && "Hoàn thành"}
-            {status === "error" && "Lỗi"}
+            {status === "connecting" && "Connecting..."}
+            {status === "streaming" && "Scanning..."}
+            {status === "complete" && "Complete"}
+            {status === "error" && "Error"}
           </CardTitle>
           {status === "complete" && (
-            <Badge variant="secondary">{listingsFound} tìm thấy</Badge>
+            <Badge variant="secondary">{listingsFound} found</Badge>
           )}
         </div>
 
@@ -87,8 +87,8 @@ export function ScanProgressPanel() {
             ) : (
               <div className="w-full h-64 rounded border bg-muted/50 flex items-center justify-center text-sm text-muted-foreground">
                 {status === "streaming" || status === "connecting"
-                  ? "Đang chờ live preview..."
-                  : "Không có preview"}
+                  ? "Waiting for live preview..."
+                  : "No preview"}
               </div>
             )}
           </div>
@@ -99,7 +99,7 @@ export function ScanProgressPanel() {
               {filteredSteps.length === 0 &&
                 (status === "connecting" || status === "streaming") && (
                   <div className="text-sm text-muted-foreground">
-                    {activeUrl ? "Đang chờ sự kiện từ nguồn này..." : "Đang chờ sự kiện..."}
+                    {activeUrl ? "Waiting for events from this source..." : "Waiting for events..."}
                   </div>
                 )}
               {filteredSteps.map((step) => (

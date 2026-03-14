@@ -17,19 +17,19 @@ load_dotenv()
 def _format_price(price_vnd: float | None) -> str:
     """Format VND price to readable string."""
     if not price_vnd:
-        return "Liên hệ"
+        return "Contact"
     if price_vnd >= 1_000_000:
         millions = price_vnd / 1_000_000
         if millions == int(millions):
-            return f"{int(millions)} triệu/tháng"
-        return f"{millions:.1f} triệu/tháng"
-    return f"{price_vnd:,.0f} đ/tháng"
+            return f"{int(millions)}M/month"
+        return f"{millions:.1f}M/month"
+    return f"{price_vnd:,.0f}d/month"
 
 
 def _format_area(area_sqm: float | None) -> str:
     """Format area to readable string."""
     if not area_sqm:
-        return "không rõ"
+        return "unknown"
     return f"{area_sqm:.0f}m²"
 
 
@@ -50,16 +50,18 @@ async def draft_outreach_message(
     Returns:
         Draft message text in Vietnamese.
     """
-    address = listing.get("address") or listing.get("title") or "địa chỉ"
+    address = listing.get("address") or listing.get("title") or "this address"
     price = _format_price(listing.get("price_vnd"))
     area = _format_area(listing.get("area_sqm"))
-    district = listing.get("district") or "khu vực này"
+    district = listing.get("district") or "this area"
+    landlord_name = listing.get("landlord_name") or "unknown"
 
     custom_notes_section = ""
     if custom_notes:
-        custom_notes_section = f"## Ghi chú bổ sung từ người thuê:\n{custom_notes}"
+        custom_notes_section = f"## Additional notes from tenant:\n{custom_notes}"
 
     prompt = OUTREACH_DRAFT_PROMPT.format(
+        landlord_name=landlord_name,
         address=address,
         price=price,
         area=area,
@@ -68,7 +70,7 @@ async def draft_outreach_message(
     )
 
     model_name = os.environ.get("LANGCLAW__AGENTS__MODEL", "azure_openai:gpt-5")
-    llm = init_chat_model(model=model_name, temperature=0.8)
+    llm = init_chat_model(model=model_name, temperature=1.0)
 
     logger.info(f"Drafting outreach message for listing {listing.get('id')}")
 

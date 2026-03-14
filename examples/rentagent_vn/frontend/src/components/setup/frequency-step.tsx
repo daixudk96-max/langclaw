@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Rocket } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
+import { ArrowLeft } from "lucide-react";
 
 interface FrequencyStepProps {
   onConfirm: (frequency: string) => void;
@@ -15,23 +11,19 @@ interface FrequencyStepProps {
 const FREQUENCIES = [
   {
     value: "manual",
-    label: "Thủ công",
-    description: "Quét khi bạn bấm nút. Phù hợp nếu không vội.",
+    title: "Manual",
+    description: "Scan when you tap the button.",
   },
   {
-    value: "1x_day",
-    label: "1 lần/ngày",
-    description: "Quét tự động mỗi sáng lúc 8:00.",
-  },
-  {
-    value: "2x_day",
-    label: "2 lần/ngày",
-    description: "Quét lúc 8:00 và 18:00. Không bỏ lỡ tin mới.",
+    value: "auto",
+    title: "Daily",
+    description: "Automatically scan every morning.",
+    recommended: true,
   },
 ];
 
 export function FrequencyStep({ onConfirm, onBack }: FrequencyStepProps) {
-  const [selected, setSelected] = useState("manual");
+  const [selected, setSelected] = useState("auto");
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {
@@ -40,55 +32,133 @@ export function FrequencyStep({ onConfirm, onBack }: FrequencyStepProps) {
   };
 
   return (
-    <Card className="p-6">
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold">Tần suất quét</h2>
-        <p className="text-sm text-muted-foreground">
-          Chọn mức độ tự động tìm kiếm. Bạn luôn có thể quét thủ công.
+    <div
+      className="flex flex-col min-h-screen"
+      style={{ background: "var(--cream)" }}
+    >
+      {/* Header */}
+      <div className="flex-shrink-0 pt-[60px] px-5 pb-6">
+        <button
+          onClick={onBack}
+          disabled={loading}
+          className="flex items-center gap-1 text-[13px] font-medium mb-4 -ml-1"
+          style={{ color: "var(--ink-50)" }}
+        >
+          <ArrowLeft size={16} />
+          Back
+        </button>
+        <h1
+          className="text-[22px] font-extrabold tracking-tight"
+          style={{ color: "var(--ink)" }}
+        >
+          Scan schedule
+        </h1>
+        <p
+          className="text-[13px] font-medium mt-1"
+          style={{ color: "var(--ink-50)" }}
+        >
+          You can always scan manually anytime
         </p>
       </div>
 
-      <RadioGroup
-        value={selected}
-        onValueChange={setSelected}
-        className="space-y-3"
-      >
-        {FREQUENCIES.map((freq) => (
-          <label
-            key={freq.value}
-            className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-              selected === freq.value
-                ? "border-primary/30 bg-primary/5"
-                : "border-border hover:bg-muted/50"
-            }`}
-          >
-            <RadioGroupItem value={freq.value} className="mt-0.5" />
-            <div>
-              <p className="text-sm font-medium">{freq.label}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {freq.description}
-              </p>
-            </div>
-          </label>
-        ))}
-      </RadioGroup>
+      {/* Options */}
+      <div className="flex-1 px-5">
+        <div className="flex flex-col gap-3">
+          {FREQUENCIES.map((freq) => {
+            const isSelected = selected === freq.value;
 
-      <div className="flex justify-between mt-6">
-        <Button variant="ghost" onClick={onBack} disabled={loading}>
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Quay lại
-        </Button>
-        <Button onClick={handleConfirm} disabled={loading}>
-          {loading ? (
-            <span className="animate-pulse">Đang tạo...</span>
-          ) : (
-            <>
-              <Rocket className="h-4 w-4 mr-1" />
-              Bắt đầu
-            </>
-          )}
-        </Button>
+            return (
+              <button
+                key={freq.value}
+                onClick={() => setSelected(freq.value)}
+                disabled={loading}
+                className="flex items-start gap-3 p-4 text-left transition-all"
+                style={{
+                  background: isSelected ? "var(--terra-08)" : "var(--ds-white)",
+                  border: isSelected
+                    ? "2px solid var(--terra)"
+                    : "1px solid var(--ink-08)",
+                  borderRadius: "var(--r-lg)",
+                }}
+              >
+                {/* Radio indicator */}
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors"
+                  style={{
+                    border: isSelected
+                      ? "none"
+                      : "2px solid var(--ink-15)",
+                    background: isSelected ? "var(--terra)" : "transparent",
+                  }}
+                >
+                  {isSelected && (
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ background: "white" }}
+                    />
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-[14px] font-semibold"
+                      style={{ color: "var(--ink)" }}
+                    >
+                      {freq.title}
+                    </span>
+                    {freq.recommended && (
+                      <span
+                        className="px-2 py-0.5 text-[10px] font-semibold rounded-full"
+                        style={{
+                          background: "var(--jade-15)",
+                          color: "var(--jade)",
+                        }}
+                      >
+                        Recommended
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className="text-[12px] mt-1"
+                    style={{ color: "var(--ink-50)" }}
+                  >
+                    {freq.description}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
-    </Card>
+
+      {/* Footer */}
+      <div className="flex-shrink-0 px-5 pt-4 pb-8">
+        <button
+          onClick={handleConfirm}
+          disabled={loading}
+          className="w-full h-[56px] text-[16px] font-bold transition-colors"
+          style={{
+            background: "var(--terra)",
+            color: "white",
+            borderRadius: "var(--r-lg)",
+            opacity: loading ? 0.7 : 1,
+          }}
+        >
+          {loading ? (
+            <span className="animate-pulse">Creating...</span>
+          ) : (
+            "Start searching"
+          )}
+        </button>
+        <p
+          className="text-[12px] text-center mt-3"
+          style={{ color: "var(--ink-30)" }}
+        >
+          We&apos;ll start scanning right after setup
+        </p>
+      </div>
+    </div>
   );
 }

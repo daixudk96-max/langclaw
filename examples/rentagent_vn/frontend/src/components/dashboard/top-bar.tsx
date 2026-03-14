@@ -33,7 +33,7 @@ export function TopBar({ campaign, onChatToggle }: TopBarProps) {
 
   const lastScanTime = latestScan?.completed_at || latestScan?.started_at;
   const formattedTime = lastScanTime
-    ? new Date(lastScanTime + "Z").toLocaleString("vi-VN", {
+    ? new Date(lastScanTime + "Z").toLocaleString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
         day: "2-digit",
@@ -48,17 +48,17 @@ export function TopBar({ campaign, onChatToggle }: TopBarProps) {
           <h1 className="text-base font-semibold">{campaign.name}</h1>
           {isScanning ? (
             <Badge variant="default" className="text-xs animate-pulse">
-              Đang quét...
+              Scanning...
             </Badge>
           ) : (
             <Badge variant="secondary" className="text-xs">
-              Sẵn sàng
+              Ready
             </Badge>
           )}
           {runningCount > 0 && (
             <div className="flex items-center gap-1.5 bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700 rounded-full px-2 py-0.5 text-xs">
               <span className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-pulse" />
-              <span>Đang nghiên cứu ({runningCount})</span>
+              <span>Researching ({runningCount})</span>
             </div>
           )}
         </div>
@@ -66,7 +66,7 @@ export function TopBar({ campaign, onChatToggle }: TopBarProps) {
         <div className="flex items-center gap-3">
           {formattedTime && (
             <span className="text-xs text-muted-foreground">
-              Quét gần nhất: {formattedTime}
+              Last scan: {formattedTime}
             </span>
           )}
           <Button
@@ -74,7 +74,7 @@ export function TopBar({ campaign, onChatToggle }: TopBarProps) {
             size="icon"
             onClick={() => setZaloSettingsOpen(true)}
             className="relative"
-            title={zaloConnected ? "Zalo đã kết nối" : "Kết nối Zalo"}
+            title={zaloConnected ? "Zalo connected" : "Connect Zalo"}
           >
             <div className="relative">
               <MessageCircle className="h-4 w-4" />

@@ -2,10 +2,13 @@
 
 CREATE TABLE IF NOT EXISTS campaigns (
   id TEXT PRIMARY KEY DEFAULT (hex(randomblob(6))),
-  name TEXT NOT NULL DEFAULT 'Chiến dịch mới',
+  name TEXT NOT NULL DEFAULT 'New Campaign',
   preferences_json TEXT NOT NULL DEFAULT '{}',
   sources_json TEXT NOT NULL DEFAULT '[]',
   scan_frequency TEXT NOT NULL DEFAULT 'manual',
+  auto_scan_hour INTEGER NOT NULL DEFAULT 6,
+  auto_scan_timezone TEXT NOT NULL DEFAULT 'Asia/Ho_Chi_Minh',
+  last_auto_scan_date TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))

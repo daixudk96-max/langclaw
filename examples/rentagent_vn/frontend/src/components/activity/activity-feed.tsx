@@ -48,13 +48,13 @@ export function ActivityFeed({ campaignId }: ActivityFeedProps) {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="w-full sm:max-w-sm flex flex-col p-0">
           <SheetHeader className="px-4 py-3 border-b">
-            <SheetTitle className="text-base">Nhật ký hoạt động</SheetTitle>
+            <SheetTitle className="text-base">Activity log</SheetTitle>
           </SheetHeader>
 
           <ScrollArea className="flex-1 p-4">
             {activities.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                Chưa có hoạt động nào.
+                No activity yet.
               </p>
             ) : (
               <div className="space-y-3">
