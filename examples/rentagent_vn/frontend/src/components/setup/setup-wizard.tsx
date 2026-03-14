@@ -86,7 +86,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       onComplete(campaign.id);
     } catch (e) {
       console.error("Failed to create campaign:", e);
-      toast.error("Không thể tạo chiến dịch. Vui lòng thử lại.");
+      toast.error("Failed to create campaign. Please try again.");
     }
   };
 
@@ -127,6 +127,6 @@ function buildCampaignName(prefs: CampaignPreferences): string {
   const parts: string[] = [];
   if (prefs.property_type) parts.push(prefs.property_type);
   if (prefs.district) parts.push(prefs.district);
-  if (prefs.bedrooms) parts.push(`${prefs.bedrooms}PN`);
-  return parts.length > 0 ? parts.join(" · ") : "Chiến dịch mới";
+  if (prefs.bedrooms) parts.push(`${prefs.bedrooms}BR`);
+  return parts.length > 0 ? parts.join(" · ") : "New Campaign";
 }

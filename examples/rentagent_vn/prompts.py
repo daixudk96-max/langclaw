@@ -31,7 +31,7 @@ Ho Chi Minh City and Hanoi.
 - You provide a natural-language `query` describing what the user wants.
 - The tool automatically searches across all configured platform URLs.
 - Keep the query focused: describe the property (area, bedrooms, budget, \
-  special requirements) in plain Vietnamese or English.
+  special requirements) in plain English.
 - If the user mentions preferences during conversation (e.g. "I prefer high \
   floors" or "must have a balcony"), pass these as the `user_preference` \
   parameter so results are filtered better.
@@ -145,31 +145,50 @@ NEVER use placeholder text like "Not mentioned", "Unknown", "N/A", or "Contact".
 
 GOAL_FACEBOOK_GROUP = """\
 ## Objective
-Extract rental listings from this Facebook group page.
+Search for rental listings in this Facebook group using the group's search \
+function, then extract matching results.
 
 ## Steps
-1. Scroll down to load posts in the feed.
-2. For EACH post, verify if it is a valid rental provider.
+1. **Search within the group.**
+   - Locate the search icon or search bar inside the group (usually near the \
+top of the group page, labeled "Tìm kiếm trong nhóm" or a magnifying glass icon).
+   - Type the search query into the group search box and press Enter.
+   - If a sort/filter option appears, select **"Mới nhất" (Newest)** to surface \
+the most recent posts first.
+   - If the group search is unavailable, fall back to browsing the feed sorted \
+by "Mới nhất" — look for a "Sắp xếp" or sort toggle near the top of the feed.
+
+2. **Filter results — accept ONLY valid rental offers.**
    - CRITICAL: STRICTLY IGNORE posts from people looking for rent \
-(rentees saying "tìm phòng", "cần tìm", "cần thuê"). \
-ONLY extract posts from landlords or agents offering a rental ("cho thuê", "pass phòng").
+(rentees saying "tìm phòng", "cần tìm", "cần thuê", "ai có phòng không"). \
+ONLY extract posts from landlords or agents offering a rental ("cho thuê", \
+"pass phòng", "còn phòng trống").
    - Skip discussions, questions, memes, and non-rental content.
-3. Extract the listing details from the valid post text.
-4. Locate and extract the actual image of the room attached to the post \
-for the thumbnail_url (do NOT use the poster's profile picture).
-5. Capture the poster's Facebook profile URL as landlord_facebook_url.
+   - PRIORITIZE posts from the last 7 days. Deprioritize posts older than 30 days \
+(extract them only if you cannot find enough recent ones).
+
+3. **Extract listing details from each valid post.**
+   - Read the full post text for price, address, size, room type, and contact info.
+   - Prefer posts whose content explicitly matches the search query \
+(district, price range, room type).
+
+4. **Capture media and contact.**
+   - Locate and extract the actual image of the room attached to the post for \
+thumbnail_url (do NOT use the poster's profile picture or group cover photo).
+   - Capture the poster's Facebook profile URL as landlord_facebook_url.
 
 ## Termination Conditions
 Stop when ANY of these is true:
 - You have successfully extracted between 5 and 10 valid rental listings \
 THAT INCLUDE at least one valid contact method (phone, zalo, or messenger link). \
 Do not stop until you have at least 5 with contacts.
-- You have scrolled through 40 posts and cannot find any more.
+- You have reviewed 40 posts from the search results and cannot find more matches.
 - No more content loads after scrolling.
 
 ## Guardrails
-- Do NOT click on individual posts or navigate away from the group feed.
+- Do NOT click into individual posts or navigate away from the group feed.
 - Do NOT invent or fabricate any data not present in the post.
+- Do NOT use the main Facebook search bar — search WITHIN the group only.
 
 ## Edge cases
 - If a post mentions price in shorthand (e.g. "5tr", "5M"), convert: \
@@ -467,11 +486,11 @@ criterion on a 1-10 scale and provide a brief verdict.
 
 ## Instructions
 1. For each criterion, assign a score (integer 1-10).
-2. Provide 2-3 highlight bullet points in Vietnamese.
+2. Provide 2-3 highlight bullet points in English.
 3. Include detailed sub-findings as key-value pairs in a list format.
 4. Calculate the overall score as the average of all criteria scores, \
 rounded to one decimal.
-5. Write a verdict (1-2 sentences in Vietnamese) summarizing the \
+5. Write a verdict (1-2 sentences in English) summarizing the \
 neighbourhood's suitability for living.
 
 ## Output format

@@ -11,24 +11,19 @@ interface FrequencyStepProps {
 const FREQUENCIES = [
   {
     value: "manual",
-    title: "Thủ công",
-    description: "Quét khi bạn bấm nút. Phù hợp nếu không vội.",
+    title: "Manual",
+    description: "Scan when you tap the button.",
   },
   {
-    value: "1x_day",
-    title: "Mỗi ngày",
-    description: "Tự động quét lúc 8:00 sáng mỗi ngày.",
+    value: "auto",
+    title: "Daily",
+    description: "Automatically scan every morning.",
     recommended: true,
-  },
-  {
-    value: "2x_day",
-    title: "2 lần/ngày",
-    description: "Quét lúc 8:00 sáng và 6:00 chiều. Không bỏ lỡ tin mới.",
   },
 ];
 
 export function FrequencyStep({ onConfirm, onBack }: FrequencyStepProps) {
-  const [selected, setSelected] = useState("1x_day");
+  const [selected, setSelected] = useState("auto");
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {
@@ -50,19 +45,19 @@ export function FrequencyStep({ onConfirm, onBack }: FrequencyStepProps) {
           style={{ color: "var(--ink-50)" }}
         >
           <ArrowLeft size={16} />
-          Quay lại
+          Back
         </button>
         <h1
           className="text-[22px] font-extrabold tracking-tight"
           style={{ color: "var(--ink)" }}
         >
-          Lịch quét tự động
+          Scan schedule
         </h1>
         <p
           className="text-[13px] font-medium mt-1"
           style={{ color: "var(--ink-50)" }}
         >
-          Bạn luôn có thể quét thủ công bất cứ lúc nào
+          You can always scan manually anytime
         </p>
       </div>
 
@@ -121,7 +116,7 @@ export function FrequencyStep({ onConfirm, onBack }: FrequencyStepProps) {
                           color: "var(--jade)",
                         }}
                       >
-                        Đề xuất
+                        Recommended
                       </span>
                     )}
                   </div>
@@ -152,16 +147,16 @@ export function FrequencyStep({ onConfirm, onBack }: FrequencyStepProps) {
           }}
         >
           {loading ? (
-            <span className="animate-pulse">Đang tạo...</span>
+            <span className="animate-pulse">Creating...</span>
           ) : (
-            "Bắt đầu tìm kiếm 🚀"
+            "Start searching"
           )}
         </button>
         <p
           className="text-[12px] text-center mt-3"
           style={{ color: "var(--ink-30)" }}
         >
-          Mình sẽ bắt đầu quét ngay sau khi tạo xong
+          We&apos;ll start scanning right after setup
         </p>
       </div>
     </div>

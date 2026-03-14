@@ -16,7 +16,7 @@ const PREF_FIELDS: {
   placeholder: string;
   type?: string;
 }[] = [
-  { key: "district", label: "Location", placeholder: "District 7, Binh Thanh..." },
+  { key: "location", label: "Location", placeholder: "District 7, Binh Thanh..." },
   {
     key: "property_type",
     label: "Property type",

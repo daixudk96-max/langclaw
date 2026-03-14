@@ -1,8 +1,16 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ArrowLeft, Plus, X, Globe } from "lucide-react";
+import { ArrowLeft, Plus, Globe } from "lucide-react";
 import type { CampaignPreferences } from "@/types";
+import {
+  SourceCard,
+  CustomSourceCard,
+  DEFAULT_SOURCES,
+  DISTRICT_GROUPS,
+  getPlatformFromUrl,
+  type Source,
+} from "@/components/shared";
 
 interface SourcesStepProps {
   preferences: CampaignPreferences;
@@ -10,119 +18,10 @@ interface SourcesStepProps {
   onBack: () => void;
 }
 
-interface Source {
-  url: string;
-  label: string;
-  platform: "nhatot" | "bds" | "facebook" | "zalo" | "custom";
-  enabled: boolean;
-}
-
-const DEFAULT_SOURCES: Source[] = [
-  {
-    url: "https://www.nhatot.com/thue-phong-tro",
-    label: "Nhà Tốt",
-    platform: "nhatot",
-    enabled: true,
-  },
-  {
-    url: "https://batdongsan.com.vn/cho-thue",
-    label: "Batdongsan.com.vn",
-    platform: "bds",
-    enabled: true,
-  },
-];
-
-const DISTRICT_GROUPS: Record<string, { url: string; label: string }[]> = {
-  "Bình Thạnh": [
-    {
-      url: "https://facebook.com/groups/phongtrobinhthanh",
-      label: "Phòng Trọ Bình Thạnh",
-    },
-  ],
-  "Quận 7": [
-    {
-      url: "https://facebook.com/groups/phongtroquan7",
-      label: "Phòng Trọ Quận 7",
-    },
-  ],
-  "Quận 1": [
-    {
-      url: "https://facebook.com/groups/phongtroquan1hcm",
-      label: "Phòng Trọ Quận 1",
-    },
-  ],
-  "Phú Nhuận": [
-    {
-      url: "https://facebook.com/groups/phongtrophunhuan",
-      label: "Phòng Trọ Phú Nhuận",
-    },
-  ],
-  "Tân Bình": [
-    {
-      url: "https://facebook.com/groups/phongtrotanbinh",
-      label: "Phòng Trọ Tân Bình",
-    },
-  ],
-  "Gò Vấp": [
-    {
-      url: "https://facebook.com/groups/phongtrogovap",
-      label: "Phòng Trọ Gò Vấp",
-    },
-  ],
-};
-
-const PLATFORM_COLORS: Record<string, string> = {
-  nhatot: "#F57C00",
-  bds: "#1976D2",
-  facebook: "#1877F2",
-  zalo: "#0068FF",
-  custom: "var(--ink-30)",
-};
-
-const PLATFORM_ICONS: Record<string, string> = {
-  nhatot: "🏠",
-  bds: "🏢",
-  facebook: "📘",
-  zalo: "💬",
-  custom: "🔗",
-};
-
-function getPlatformFromUrl(url: string): Source["platform"] {
-  if (url.includes("nhatot.com")) return "nhatot";
-  if (url.includes("batdongsan.com")) return "bds";
-  if (url.includes("facebook.com")) return "facebook";
-  if (url.includes("zalo")) return "zalo";
-  return "custom";
-}
-
-function Toggle({
-  enabled,
-  onChange,
-}: {
-  enabled: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <button
-      onClick={onChange}
-      className="w-[44px] h-[26px] rounded-full p-[3px] transition-colors"
-      style={{
-        background: enabled ? "var(--terra)" : "var(--ink-15)",
-      }}
-    >
-      <div
-        className="w-5 h-5 rounded-full transition-transform"
-        style={{
-          background: "white",
-          transform: enabled ? "translateX(18px)" : "translateX(0)",
-        }}
-      />
-    </button>
-  );
-}
-
 export function SourcesStep({ preferences, onConfirm, onBack }: SourcesStepProps) {
-  const [defaults, setDefaults] = useState<Source[]>(DEFAULT_SOURCES);
+  const [defaults, setDefaults] = useState<Source[]>(() =>
+    DEFAULT_SOURCES.map((s) => ({ ...s, enabled: true }))
+  );
   const [customSources, setCustomSources] = useState<Source[]>([]);
   const [urlInput, setUrlInput] = useState("");
   const [error, setError] = useState("");
@@ -172,26 +71,34 @@ export function SourcesStep({ preferences, onConfirm, onBack }: SourcesStepProps
     if (!url) return;
 
     if (!url.startsWith("http")) {
-      setError("Link không hợp lệ");
-      return;
-    }
-    if (
-      customSources.find((s) => s.url === url) ||
-      defaults.find((s) => s.url === url)
-    ) {
-      setError("Link này đã được thêm");
+      setError("Invalid URL");
       return;
     }
 
-    const platform = getPlatformFromUrl(url);
-    const label = new URL(url).hostname.replace("www.", "");
+    const allUrls = [
+      ...defaults.map((s) => s.url),
+      ...districtSources.map((s) => s.url),
+      ...customSources.map((s) => s.url),
+    ];
 
-    setCustomSources((prev) => [
-      ...prev,
-      { url, label, platform, enabled: true },
-    ]);
-    setUrlInput("");
-    setError("");
+    if (allUrls.includes(url)) {
+      setError("This URL is already added");
+      return;
+    }
+
+    try {
+      const platform = getPlatformFromUrl(url);
+      const label = new URL(url).hostname.replace("www.", "");
+
+      setCustomSources((prev) => [
+        ...prev,
+        { url, label, platform, enabled: true },
+      ]);
+      setUrlInput("");
+      setError("");
+    } catch {
+      setError("Invalid URL");
+    }
   };
 
   const removeCustom = (url: string) => {
@@ -225,19 +132,19 @@ export function SourcesStep({ preferences, onConfirm, onBack }: SourcesStepProps
           style={{ color: "var(--ink-50)" }}
         >
           <ArrowLeft size={16} />
-          Quay lại
+          Back
         </button>
         <h1
           className="text-[22px] font-extrabold tracking-tight"
           style={{ color: "var(--ink)" }}
         >
-          Chọn nguồn tìm kiếm
+          Choose your sources
         </h1>
         <p
           className="text-[13px] font-medium mt-1"
           style={{ color: "var(--ink-50)" }}
         >
-          Mình sẽ quét các trang này để tìm phòng cho bạn
+          We&apos;ll scan these sites to find listings for you
         </p>
       </div>
 
@@ -249,7 +156,7 @@ export function SourcesStep({ preferences, onConfirm, onBack }: SourcesStepProps
             className="text-[11px] font-semibold uppercase tracking-wide mb-3"
             style={{ color: "var(--ink-30)", letterSpacing: "0.8px" }}
           >
-            Nguồn đề xuất
+            Popular Sources
           </p>
           <div className="flex flex-col gap-2">
             {defaults.map((source, i) => (
@@ -269,13 +176,13 @@ export function SourcesStep({ preferences, onConfirm, onBack }: SourcesStepProps
               className="text-[11px] font-semibold uppercase tracking-wide mb-1"
               style={{ color: "var(--ink-30)", letterSpacing: "0.8px" }}
             >
-              Đề xuất theo khu vực
+              District Suggestions
             </p>
             <p
               className="text-[12px] mb-3"
               style={{ color: "var(--ink-30)" }}
             >
-              Dựa trên khu vực bạn chọn: {preferences.district}
+              Based on your area: {preferences.district}
             </p>
             <div className="flex flex-col gap-2">
               {districtSources.map((source, i) => (
@@ -295,49 +202,17 @@ export function SourcesStep({ preferences, onConfirm, onBack }: SourcesStepProps
             className="text-[11px] font-semibold uppercase tracking-wide mb-3"
             style={{ color: "var(--ink-30)", letterSpacing: "0.8px" }}
           >
-            Thêm nguồn khác
+            Add Custom Source
           </p>
 
           {customSources.length > 0 && (
             <div className="flex flex-col gap-2 mb-3">
               {customSources.map((source) => (
-                <div
+                <CustomSourceCard
                   key={source.url}
-                  className="flex items-center gap-3 p-3"
-                  style={{
-                    background: "var(--ds-white)",
-                    border: "1px solid var(--ink-08)",
-                    borderRadius: "var(--r-lg)",
-                  }}
-                >
-                  <div
-                    className="w-9 h-9 rounded-[var(--r-sm)] flex items-center justify-center text-[16px]"
-                    style={{ background: `${PLATFORM_COLORS[source.platform]}20` }}
-                  >
-                    {PLATFORM_ICONS[source.platform]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className="text-[13px] font-semibold truncate"
-                      style={{ color: "var(--ink)" }}
-                    >
-                      {source.label}
-                    </p>
-                    <p
-                      className="text-[12px] truncate"
-                      style={{ color: "var(--ink-30)" }}
-                    >
-                      {source.url}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => removeCustom(source.url)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ background: "var(--ink-08)" }}
-                  >
-                    <X size={16} style={{ color: "var(--ink-50)" }} />
-                  </button>
-                </div>
+                  source={source}
+                  onRemove={() => removeCustom(source.url)}
+                />
               ))}
             </div>
           )}
@@ -360,7 +235,7 @@ export function SourcesStep({ preferences, onConfirm, onBack }: SourcesStepProps
               onKeyDown={(e) =>
                 e.key === "Enter" && (e.preventDefault(), addCustomUrl())
               }
-              placeholder="Dán link nhóm Facebook, Zalo..."
+              placeholder="Paste Facebook group or Zalo link..."
               className="flex-1 bg-transparent outline-none text-[13px] font-medium"
               style={{ color: "var(--ink)" }}
             />
@@ -398,51 +273,11 @@ export function SourcesStep({ preferences, onConfirm, onBack }: SourcesStepProps
             borderRadius: "var(--r-lg)",
           }}
         >
-          Tiếp tục → ({totalSources} nguồn)
+          {totalSources === 0
+            ? "Select at least one source"
+            : `Continue with ${totalSources} source${totalSources > 1 ? "s" : ""}`}
         </button>
       </div>
-    </div>
-  );
-}
-
-function SourceCard({
-  source,
-  onToggle,
-}: {
-  source: Source;
-  onToggle: () => void;
-}) {
-  return (
-    <div
-      className="flex items-center gap-3 p-3 transition-opacity"
-      style={{
-        background: "var(--ds-white)",
-        border: "1px solid var(--ink-08)",
-        borderRadius: "var(--r-lg)",
-        opacity: source.enabled ? 1 : 0.5,
-      }}
-    >
-      <div
-        className="w-9 h-9 rounded-[var(--r-sm)] flex items-center justify-center text-[16px]"
-        style={{ background: `${PLATFORM_COLORS[source.platform]}20` }}
-      >
-        {PLATFORM_ICONS[source.platform]}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p
-          className="text-[13px] font-semibold truncate"
-          style={{ color: "var(--ink)" }}
-        >
-          {source.label}
-        </p>
-        <p
-          className="text-[12px] truncate"
-          style={{ color: "var(--ink-30)" }}
-        >
-          {source.url}
-        </p>
-      </div>
-      <Toggle enabled={source.enabled} onChange={onToggle} />
     </div>
   );
 }
