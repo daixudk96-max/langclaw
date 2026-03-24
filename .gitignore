@@ -8,6 +8,9 @@ yarn-error.log*
 .next/
 out/
 
+# VENV
+.venv/
+
 # Python
 __pycache__/
 *.py[cod]

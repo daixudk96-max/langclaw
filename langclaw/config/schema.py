@@ -146,10 +146,25 @@ class WebSocketChannelConfig(BaseModel):
     Env format: ``user1:admin,user2:viewer``"""
 
 
+class SlackChannelConfig(BaseModel):
+    enabled: bool = False
+    bot_token: str = ""
+    """Slack Bot User OAuth Token (starts with xoxb-).
+    Get from https://api.slack.com/apps -> OAuth & Permissions"""
+    app_token: str = ""
+    """Slack App-Level Token for Socket Mode (starts with xapp-).
+    Get from https://api.slack.com/apps -> Basic Information -> App-Level Tokens"""
+    allow_from: StringList = Field(default_factory=list)
+    user_roles: StringDict = Field(default_factory=dict)
+    """Maps Slack user IDs to permission roles.
+    Env format: ``U123456:admin,U789012:viewer``"""
+
+
 class ChannelsConfig(BaseModel):
     telegram: TelegramChannelConfig = Field(default_factory=TelegramChannelConfig)
     discord: DiscordChannelConfig = Field(default_factory=DiscordChannelConfig)
     websocket: WebSocketChannelConfig = Field(default_factory=WebSocketChannelConfig)
+    slack: SlackChannelConfig = Field(default_factory=SlackChannelConfig)
 
 
 class AgentConfig(BaseModel):

@@ -19,7 +19,7 @@ FastAPI gave web developers a declarative, decorator-driven way to build APIs. L
 ## Why Use Langclaw
 
 1. **Framework, not a fork**: `uv add langclaw` and build on top of it — like Flask/FastAPI for agentic systems. No repo cloning, no boilerplate.
-2. **Multi-channel from day one**: Telegram, Discord, WebSocket out of the box. Add custom channels with a single `app.add_channel()` call.
+2. **Multi-channel from day one**: Telegram, Discord, Slack, WebSocket out of the box. Add custom channels with a single `app.add_channel()` call.
 3. **Declarative RBAC**: `app.role("analyst", tools=["*"])` — one line to define who can use what. Permissions are enforced as middleware before the LLM sees anything.
 4. **Subagent delegation**: Register specialist subagents that run in isolated contexts. The main agent delegates via a built-in `task` tool; results flow back cleanly or stream directly to the channel.
 5. **Scheduled jobs**: Users can ask the agent to schedule recurring tasks. Cron jobs publish to the same message bus and flow through the same pipeline as user messages.
@@ -112,7 +112,7 @@ See [`examples/`](examples/) for complete, runnable versions.
 Every message — whether from a user or a cron job — follows the same path:
 
 ```
-Channel (Telegram / Discord / WebSocket)
+Channel (Telegram / Discord / Slack / WebSocket)
     │
     ├── /command ──▶ CommandRouter ──▶ instant response (no LLM)
     │
@@ -147,7 +147,7 @@ uv add "langclaw[telegram,postgres,rabbitmq]"
 uv add "langclaw[all]"
 ```
 
-Available extras: `telegram`, `discord`, `websocket`, `postgres`, `rabbitmq`, `kafka`, `mcp`, `search`, `gmail`.
+Available extras: `telegram`, `discord`, `slack`, `websocket`, `postgres`, `rabbitmq`, `kafka`, `mcp`, `search`, `gmail`.
 
 ## Quick Start
 

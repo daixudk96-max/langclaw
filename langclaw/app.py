@@ -736,6 +736,16 @@ class Langclaw:
                     "Run: uv add 'langclaw[websocket]'"
                 )
 
+        if ch_cfg.slack.enabled:
+            try:
+                from langclaw.gateway.slack import SlackChannel
+
+                channels.append(SlackChannel(ch_cfg.slack))
+            except ImportError:
+                logger.warning(
+                    "Slack enabled but slack-bolt not installed. Run: uv add 'langclaw[slack]'"
+                )
+
         channels.extend(self._extra_channels)
         return channels
 
