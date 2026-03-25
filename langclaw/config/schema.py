@@ -380,6 +380,17 @@ class ToolsConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge override into base; override wins on conflicts."""
+    result = dict(base)
+    for key, val in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(val, dict):
+            result[key] = _deep_merge(result[key], val)
+        else:
+            result[key] = val
+    return result
+
+
 def _load_json_defaults() -> dict[str, Any]:
     """Load ~/.langclaw/config.json if it exists."""
     if _CONFIG_PATH.exists():
@@ -434,7 +445,7 @@ class LangclawConfig(BaseSettings):
         """Merge JSON file as low-priority base; env vars win."""
         if isinstance(values, dict):
             json_data = _load_json_defaults()
-            merged = {**json_data, **values}
+            merged = _deep_merge(json_data, values)
             return merged
         return values
 
