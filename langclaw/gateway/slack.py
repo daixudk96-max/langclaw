@@ -297,6 +297,10 @@ class SlackChannel(BaseChannel):
         if event.get("bot_id") or event.get("bot_profile"):
             return
 
+        # Ignore message subtypes except file_share
+        if event.get("subtype") and event.get("subtype") not in ("file_share",):
+            return
+
         user_id = event.get("user", "")
         channel_id = event.get("channel", "")
         text = event.get("text", "")
