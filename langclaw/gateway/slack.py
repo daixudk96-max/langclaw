@@ -107,6 +107,7 @@ class SlackChannel(BaseChannel):
         try:
             auth_response = await app.client.auth_test()
             self._bot_user_id = auth_response.get("user_id")
+            logger.info(f"Slack bot connected as {self._bot_user_id}")  
         except Exception as exc:
             logger.warning(f"Failed to fetch bot user ID: {exc}")
 
@@ -346,6 +347,11 @@ class SlackChannel(BaseChannel):
         # DMs don't need thread replies; channel mentions always reply in thread
         is_dm = event.get("channel_type") == "im"
         thread_ts = None if is_dm else (event.get("thread_ts") or event.get("ts"))
+
+        # In non-DM channels, ignore messages that don't mention the bot
+        if not is_dm:
+            if self._bot_user_id and f"<@{self._bot_user_id}>" not in (event.get("text") or ""):
+                return
 
         # Strip bot mention markup from app_mention events
         if self._bot_user_id:
