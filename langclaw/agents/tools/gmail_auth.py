@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from langclaw.config.schema import secret_value
+
 if TYPE_CHECKING:
     from google.oauth2.credentials import Credentials
 
@@ -36,7 +38,7 @@ def _build_client_config(config: GmailConfig) -> dict:
     return {
         "installed": {
             "client_id": config.client_id,
-            "client_secret": config.client_secret,
+            "client_secret": secret_value(config.client_secret),
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
             "redirect_uris": ["http://localhost"],
@@ -65,6 +67,12 @@ def get_gmail_credentials(config: GmailConfig) -> Credentials:
     """
     global _cached_credentials  # noqa: PLW0603
 
+    if not config.client_id or not config.client_secret:
+        raise RuntimeError(
+            "Gmail OAuth requires tools.gmail.client_id and "
+            "tools.gmail.client_secret to be configured."
+        )
+
     try:
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials as OAuthCredentials
@@ -75,12 +83,6 @@ def get_gmail_credentials(config: GmailConfig) -> Credentials:
             "are required for Gmail tools. "
             "Install with: pip install langclaw[gmail]"
         ) from exc
-
-    if not config.client_id or not config.client_secret:
-        raise RuntimeError(
-            "Gmail OAuth requires tools.gmail.client_id and "
-            "tools.gmail.client_secret to be configured."
-        )
 
     scopes = SCOPES_READONLY if config.readonly else SCOPES_FULL
 

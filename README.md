@@ -4,11 +4,11 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/langclaw)](https://pypi.org/project/langclaw/)
 [![Python versions](https://img.shields.io/pypi/pyversions/langclaw)](https://pypi.org/project/langclaw/)
-[![License](https://img.shields.io/github/license/tisu19021997/langclaw)](https://github.com/tisu19021997/langclaw/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/daixudk96-max/langclaw)](https://github.com/daixudk96-max/langclaw/blob/main/LICENSE)
 
 ---
 
-**Repository**: [github.com/tisu19021997/langclaw](https://github.com/tisu19021997/langclaw)
+**Repository**: [github.com/daixudk96-max/langclaw](https://github.com/daixudk96-max/langclaw)
 
 ---
 
@@ -19,7 +19,7 @@ FastAPI gave web developers a declarative, decorator-driven way to build APIs. L
 ## Why Use Langclaw
 
 1. **Framework, not a fork**: `uv add langclaw` and build on top of it — like Flask/FastAPI for agentic systems. No repo cloning, no boilerplate.
-2. **Multi-channel from day one**: Telegram, Discord, Slack, WebSocket out of the box. Add custom channels with a single `app.add_channel()` call.
+2. **Multi-channel from day one**: Telegram, Discord, Slack, Matrix, Feishu/Lark, and WebSocket out of the box. Add custom channels with a single `app.add_channel()` call.
 3. **Declarative RBAC**: `app.role("analyst", tools=["*"])` — one line to define who can use what. Permissions are enforced as middleware before the LLM sees anything.
 4. **Subagent delegation**: Register specialist subagents that run in isolated contexts. The main agent delegates via a built-in `task` tool; results flow back cleanly or stream directly to the channel.
 5. **Scheduled jobs**: Users can ask the agent to schedule recurring tasks. Cron jobs publish to the same message bus and flow through the same pipeline as user messages.
@@ -147,7 +147,7 @@ uv add "langclaw[telegram,postgres,rabbitmq]"
 uv add "langclaw[all]"
 ```
 
-Available extras: `telegram`, `discord`, `slack`, `websocket`, `postgres`, `rabbitmq`, `kafka`, `mcp`, `search`, `gmail`.
+Available extras: `telegram`, `discord`, `slack`, `matrix`, `feishu`, `websocket`, `postgres`, `rabbitmq`, `kafka`, `mcp`, `search`, `gmail`.
 
 ## Quick Start
 
@@ -160,6 +160,14 @@ Available extras: `telegram`, `discord`, `slack`, `websocket`, `postgres`, `rabb
    ```env
    LANGCLAW__PROVIDERS__OPENAI__API_KEY=sk-...
    LANGCLAW__CHANNELS__TELEGRAM__BOT_TOKEN=123456:ABC-DEF...
+   ```
+
+   Feishu / Lark example:
+   ```env
+   LANGCLAW__CHANNELS__FEISHU__ENABLED=true
+   LANGCLAW__CHANNELS__FEISHU__APP_ID=cli_xxx
+   LANGCLAW__CHANNELS__FEISHU__APP_SECRET=xxx
+   LANGCLAW__CHANNELS__FEISHU__CONNECTION_MODE=websocket
    ```
 
 3. **Run your agent** (Choose one option):
@@ -220,7 +228,7 @@ Available extras: `telegram`, `discord`, `slack`, `websocket`, `postgres`, `rabb
 ### Planned
 
 - **Multi-agent routing** — named agents with distinct models, routed by channel or user intent
-- **More channels** — Slack, WhatsApp, REST API gateway
+- **More channels** — WhatsApp, REST API gateway
 - **Plugin ecosystem** — `langclaw-*` tool packs installable via `uv add`
 - **Observability** — OpenTelemetry tracing for the full message flow
 - **Test coverage** — comprehensive tests across all modules
@@ -228,7 +236,7 @@ Available extras: `telegram`, `discord`, `slack`, `websocket`, `postgres`, `rabb
 ## Contributing
 
 ```bash
-git clone https://github.com/tisu19021997/langclaw.git
+git clone https://github.com/daixudk96-max/langclaw.git
 cd langclaw
 uv sync --group dev
 uv run pytest tests/ -v

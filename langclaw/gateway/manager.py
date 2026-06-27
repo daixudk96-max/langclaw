@@ -100,6 +100,9 @@ class GatewayManager:
         # Named agent registry — "default" always points to the main agent.
         self._agent_map: dict[str, CompiledStateGraph] = {"default": agent}
         self._agent_descriptions: dict[str, str] = {"default": "main agent"}
+        self._agent_display_names: dict[str, str] = {
+            "default": config.agents.display_name or "",
+        }
 
         # Spec used to rebuild the default agent when AGENTS.md changes.
         # Mirrors the arguments used by Langclaw.create_agent().
@@ -118,6 +121,7 @@ class GatewayManager:
         if self._named_agent_specs:
             for spec_name, spec in self._named_agent_specs.items():
                 self._agent_descriptions[spec_name] = spec.get("description", "")
+                self._agent_display_names[spec_name] = spec.get("display_name") or ""
                 self._agent_map[spec_name] = self._build_named_agent(spec, spec_name)
 
         # Register /agent only when named agents exist (no-op otherwise).
@@ -205,6 +209,7 @@ class GatewayManager:
             model=spec.get("model"),
             context_schema=self._context_schema,
             agent_name=agent_name,
+            display_name=spec.get("display_name") or None,
         )
 
     async def _ensure_agent_fresh(self, agent_name: str) -> CompiledStateGraph:
@@ -271,6 +276,7 @@ class GatewayManager:
                         bus=self._default_agent_spec.get("bus"),
                         model=self._default_agent_spec.get("model"),
                         context_schema=self._context_schema,
+                        display_name=self._config.agents.display_name or None,
                     )
                 else:
                     # Named agents reuse their original spec.
@@ -307,6 +313,7 @@ class GatewayManager:
         """
         agent_map = self._agent_map
         agent_descriptions = self._agent_descriptions
+        agent_display_names = self._agent_display_names
         sessions = self._sessions
         bus = self._bus
 
@@ -316,9 +323,11 @@ class GatewayManager:
                 lines = ["Available agents:"]
                 for name in agent_map:
                     desc = agent_descriptions.get(name, "")
+                    display = agent_display_names.get(name, "")
                     marker = " (active)" if name == current else ""
+                    label = f"{name} ({display})" if display else name
                     suffix = f" \u2014 {desc}" if desc else ""
-                    lines.append(f"  {name}{suffix}{marker}")
+                    lines.append(f"  {label}{suffix}{marker}")
                 return "\n".join(lines)
 
             target = ctx.args[0].lower()
@@ -444,11 +453,80 @@ class GatewayManager:
                 name=f"handle:{msg.channel}:{msg.user_id}",
             )
 
+    async def _handle_message_chunk(
+        self,
+        chunk: tuple[Any, Any],
+        msg: InboundMessage,
+        channel: BaseChannel,
+        streaming_contexts: set[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Translate one ``stream_mode="messages"`` chunk into a streaming
+        ``OutboundMessage`` on *channel*.
+
+        LangGraph yields ``(message_chunk, chunk_metadata)`` tuples and
+        emits chunks for *every* LLM call in the compiled graph, including
+        nested calls from middleware nodes (e.g. ``SummarizationMiddleware``
+        invoking its summary model). Only chunks produced by the main
+        ``"model"`` node are real agent output; everything else (summary
+        generation, planner sub-calls, etc.) must be dropped — symmetric
+        with ``_stream_updates_to_outbound_message`` which filters the
+        updates path by the same node allowlist.
+
+        Only ``AIMessageChunk`` objects with text content are forwarded;
+        tool-call-only chunks are skipped (handled by ``stream_mode="updates"``).
+        """
+        from langchain_core.messages import AIMessageChunk
+
+        message_chunk, chunk_metadata = chunk
+
+        # Drop chunks from middleware nodes (summarization, planning, etc.).
+        # The agent factory registers the user-facing model node as "model";
+        # every middleware before_/after_ node is suffixed with
+        # ".before_model" / ".after_model" and invokes its own LLM, which
+        # would otherwise leak token-by-token into the user stream.
+        node_name = (chunk_metadata or {}).get("langgraph_node")
+        if node_name != "model":
+            # Seam: a future "expose middleware activity" feature would
+            # replace this early return with a dispatch to an internal
+            # handler. Debug-level so prod logs stay quiet.
+            logger.debug(f"Skipping non-model stream chunk from node={node_name!r}")
+            return
+
+        if not isinstance(message_chunk, AIMessageChunk):
+            return
+        content = message_chunk.content
+        if not content:
+            return
+        if not isinstance(content, str):
+            content = " ".join(
+                b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+            )
+        if not content:
+            return
+
+        streaming_contexts.add(msg.context_id)
+        await channel.send(
+            OutboundMessage(
+                channel=msg.channel,
+                user_id=msg.user_id,
+                context_id=msg.context_id,
+                chat_id=msg.chat_id,
+                content=content,
+                type="ai",
+                streaming=True,
+                is_final=False,
+                metadata=metadata,
+            )
+        )
+
     async def _stream_updates_to_outbound_message(
         self,
         chunk: dict[str, Any],
         msg: InboundMessage,
         channel: BaseChannel,
+        streaming_contexts: set[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """
@@ -466,7 +544,7 @@ class GatewayManager:
 
         - ``AIMessage`` with ``tool_calls`` → ``type="tool_progress"`` per call
         - ``ToolMessage``                   → ``type="tool_result"``
-        - ``AIMessage`` with text content   → ``type="ai"``
+        - ``AIMessage`` with text content   → ``type="ai"`` (skipped if already streamed)
         """
         from langchain_core.messages import AIMessage, ToolMessage
 
@@ -535,6 +613,10 @@ class GatewayManager:
 
                 # ── AI text response ───────────────────────────────────────
                 elif isinstance(m, AIMessage) and m.content:
+                    # Skip: already delivered token-by-token via stream_mode="messages"
+                    if msg.context_id in streaming_contexts:
+                        logger.info(f"AI response (streamed) | {preview_message(m)}")
+                        continue
                     logger.info(f"AI response | {preview_message(m)}")
                     raw = m.content
                     if not isinstance(raw, str):
@@ -701,18 +783,45 @@ class GatewayManager:
         try:
             stream_kwargs: dict[str, Any] = {
                 "config": runnable_config,
-                "stream_mode": "updates",
+                "stream_mode": ["updates", "messages"],
                 "context": context,
             }
             if self._config.log_level.upper() == "DEBUG":
                 stream_kwargs["print_mode"] = "updates"
 
-            async for chunk in active_agent.astream(
+            # Track which context_ids have received streaming chunks this turn
+            # so the "updates" handler can skip the duplicate full AIMessage.
+            streaming_contexts: set[str] = set()
+
+            async for mode, chunk in active_agent.astream(
                 input_state,
                 **stream_kwargs,
             ):
-                logger.info(f"Chunk: {chunk}")
-                await self._stream_updates_to_outbound_message(chunk, msg, channel, metadata=meta)
+                if mode == "messages":
+                    await self._handle_message_chunk(
+                        chunk, msg, channel, streaming_contexts, metadata=meta
+                    )
+                elif mode == "updates":
+                    logger.info(f"Chunk: {chunk}")
+                    await self._stream_updates_to_outbound_message(
+                        chunk, msg, channel, streaming_contexts, metadata=meta
+                    )
+
+            # Signal stream end so channels can flush their buffers.
+            if msg.context_id in streaming_contexts:
+                await channel.send(
+                    OutboundMessage(
+                        channel=msg.channel,
+                        user_id=msg.user_id,
+                        context_id=msg.context_id,
+                        chat_id=msg.chat_id,
+                        content="",
+                        type="ai",
+                        streaming=True,
+                        is_final=True,
+                        metadata=meta,
+                    )
+                )
 
         except Exception:
             logger.exception(

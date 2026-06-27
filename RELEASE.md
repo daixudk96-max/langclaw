@@ -112,7 +112,7 @@ If your deployment is container-based, make sure your Docker build uses the pinn
 
 ### 7. Verify
 
-- Check the [GitHub Actions](https://github.com/tisu19021997/langclaw/actions) run
+- Check the [GitHub Actions](https://github.com/daixudk96-max/langclaw/actions) run
 - Confirm the package is live: `pip install langclaw==0.2.0`
 - Review the auto-generated GitHub Release and edit notes if needed
 

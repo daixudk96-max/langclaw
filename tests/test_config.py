@@ -5,6 +5,8 @@ without requiring any LLM API keys or external services.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 # ---------------------------------------------------------------------------
@@ -34,6 +36,43 @@ def test_config_schema_defaults():
     assert AgentConfig().rate_limit_rpm == 60
 
 
+def test_sensitive_config_fields_are_secret_str():
+    """Sensitive config fields are represented as SecretStr values."""
+    from pydantic import SecretStr
+
+    from langclaw.config.schema import (
+        CronAsyncpgEventBrokerConfig,
+        CronPostgresDataStoreConfig,
+        CronPsycopgEventBrokerConfig,
+        DiscordChannelConfig,
+        FeishuChannelConfig,
+        GmailConfig,
+        MatrixChannelConfig,
+        PostgresCheckpointerConfig,
+        RabbitMQBusConfig,
+        SlackChannelConfig,
+        TelegramChannelConfig,
+        ToolsConfig,
+    )
+
+    assert isinstance(TelegramChannelConfig().token, SecretStr)
+    assert isinstance(DiscordChannelConfig().token, SecretStr)
+    assert isinstance(SlackChannelConfig().bot_token, SecretStr)
+    assert isinstance(SlackChannelConfig().app_token, SecretStr)
+    assert isinstance(MatrixChannelConfig().access_token, SecretStr)
+    assert isinstance(FeishuChannelConfig().app_secret, SecretStr)
+    assert isinstance(FeishuChannelConfig().verification_token, SecretStr)
+    assert isinstance(FeishuChannelConfig().encrypt_key, SecretStr)
+    assert isinstance(GmailConfig().client_secret, SecretStr)
+    assert isinstance(ToolsConfig().brave_api_key, SecretStr)
+    assert isinstance(ToolsConfig().tavily_api_key, SecretStr)
+    assert isinstance(RabbitMQBusConfig().amqp_url, SecretStr)
+    assert isinstance(PostgresCheckpointerConfig().dsn, SecretStr)
+    assert isinstance(CronPostgresDataStoreConfig().dsn, SecretStr)
+    assert isinstance(CronAsyncpgEventBrokerConfig().dsn, SecretStr)
+    assert isinstance(CronPsycopgEventBrokerConfig().dsn, SecretStr)
+
+
 def test_config_env_override(monkeypatch):
     """Environment variables should override defaults."""
     monkeypatch.setenv("LANGCLAW__AGENTS__MODEL", "openai:gpt-4.1")
@@ -45,6 +84,39 @@ def test_config_env_override(monkeypatch):
     cfg = LangclawConfig()
     assert cfg.agents.model == "openai:gpt-4.1"
     assert cfg.bus.backend == "rabbitmq"
+
+
+def test_save_default_config_does_not_persist_sensitive_env_values(monkeypatch, tmp_path):
+    """save_default_config must not write env-provided secrets into config.json."""
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__TOKEN", "telegram-secret")
+    monkeypatch.setenv("LANGCLAW__CHANNELS__SLACK__BOT_TOKEN", "slack-secret")
+    monkeypatch.setenv("LANGCLAW__CHANNELS__FEISHU__APP_SECRET", "feishu-secret")
+    monkeypatch.setenv("LANGCLAW__TOOLS__BRAVE_API_KEY", "brave-secret")
+
+    from langclaw.config import schema
+
+    config_path = tmp_path / "config.json"
+    monkeypatch.setattr(schema, "_CONFIG_PATH", config_path)
+
+    written_path = schema.save_default_config()
+
+    assert written_path == config_path
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert saved["channels"]["telegram"]["token"] == ""
+    assert saved["channels"]["slack"]["bot_token"] == ""
+    assert saved["channels"]["feishu"]["app_secret"] == ""
+    assert saved["tools"]["brave_api_key"] == ""
+
+
+def test_build_web_tools_accepts_secret_api_key():
+    """build_web_tools should still enable search when API keys are SecretStr values."""
+    from langclaw.agents.tools import build_web_tools
+    from langclaw.config.schema import LangclawConfig, ToolsConfig
+
+    cfg = LangclawConfig(tools=ToolsConfig(search_backend="brave", brave_api_key="brave-secret"))
+    tools = build_web_tools(cfg)
+
+    assert any(tool.name == "web_search" for tool in tools)
 
 
 # ---------------------------------------------------------------------------

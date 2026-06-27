@@ -14,8 +14,8 @@ class TestSlackConfig:
 
         config = SlackChannelConfig()
         assert config.enabled is False
-        assert config.bot_token == ""
-        assert config.app_token == ""
+        assert config.bot_token.get_secret_value() == ""
+        assert config.app_token.get_secret_value() == ""
         assert config.allow_from == []
         assert config.user_roles == {}
         assert config.reaction_feedback_enabled is True
@@ -34,8 +34,8 @@ class TestSlackConfig:
             user_roles={"U123456": "admin"},
         )
         assert config.enabled is True
-        assert config.bot_token == "xoxb-test"
-        assert config.app_token == "xapp-test"
+        assert config.bot_token.get_secret_value() == "xoxb-test"
+        assert config.app_token.get_secret_value() == "xapp-test"
         assert config.allow_from == ["U123456"]
         assert config.user_roles == {"U123456": "admin"}
 

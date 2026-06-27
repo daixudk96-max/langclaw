@@ -18,7 +18,7 @@ class TestGmailConfigDefaults:
         cfg = GmailConfig()
         assert cfg.enabled is False
         assert cfg.client_id == ""
-        assert cfg.client_secret == ""
+        assert cfg.client_secret.get_secret_value() == ""
         assert cfg.readonly is True
 
     def test_gmail_nested_in_tools_config(self):
@@ -39,7 +39,7 @@ class TestGmailConfigDefaults:
         cfg = LangclawConfig()
         assert cfg.tools.gmail.enabled is True
         assert cfg.tools.gmail.client_id == "test-id"
-        assert cfg.tools.gmail.client_secret == "test-secret"
+        assert cfg.tools.gmail.client_secret.get_secret_value() == "test-secret"
         assert cfg.tools.gmail.readonly is False
 
     def test_gmail_token_path_default(self):

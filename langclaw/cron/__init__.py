@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from langclaw.config.schema import secret_value
 from langclaw.cron.scheduler import CronJob, CronManager, _schedule_to_cronjob
 
 if TYPE_CHECKING:
@@ -63,7 +64,7 @@ def _make_data_store(cfg: CronDataStoreConfig) -> DataStore:
         return SQLAlchemyDataStore(url)
 
     if cfg.backend == "postgres":
-        if not cfg.postgres.dsn:
+        if not secret_value(cfg.postgres.dsn):
             raise ValueError(
                 "cron.data_store.postgres.dsn must be set when data_store.backend = 'postgres'."
             )
@@ -75,7 +76,7 @@ def _make_data_store(cfg: CronDataStoreConfig) -> DataStore:
                 "Install with: uv add sqlalchemy asyncpg"
             ) from exc
 
-        return SQLAlchemyDataStore(cfg.postgres.dsn)
+        return SQLAlchemyDataStore(secret_value(cfg.postgres.dsn))
 
     raise ValueError(
         f"Unknown cron data_store backend: {cfg.backend!r}. "
@@ -91,7 +92,7 @@ def _make_event_broker(cfg: CronEventBrokerConfig) -> EventBroker:
         return LocalEventBroker()
 
     if cfg.backend == "asyncpg":
-        if not cfg.asyncpg.dsn:
+        if not secret_value(cfg.asyncpg.dsn):
             raise ValueError(
                 "cron.event_broker.asyncpg.dsn must be set when event_broker.backend = 'asyncpg'."
             )
@@ -102,10 +103,10 @@ def _make_event_broker(cfg: CronEventBrokerConfig) -> EventBroker:
                 "asyncpg event broker requires asyncpg. Install with: uv add asyncpg"
             ) from exc
 
-        return AsyncpgEventBroker.from_dsn(cfg.asyncpg.dsn)
+        return AsyncpgEventBroker.from_dsn(secret_value(cfg.asyncpg.dsn))
 
     if cfg.backend == "psycopg":
-        if not cfg.psycopg.dsn:
+        if not secret_value(cfg.psycopg.dsn):
             raise ValueError(
                 "cron.event_broker.psycopg.dsn must be set when event_broker.backend = 'psycopg'."
             )
@@ -116,7 +117,7 @@ def _make_event_broker(cfg: CronEventBrokerConfig) -> EventBroker:
                 "psycopg event broker requires psycopg. Install with: uv add 'psycopg[binary]'"
             ) from exc
 
-        return PsycopgEventBroker.from_dsn(cfg.psycopg.dsn)
+        return PsycopgEventBroker.from_dsn(secret_value(cfg.psycopg.dsn))
 
     if cfg.backend == "redis":
         try:
