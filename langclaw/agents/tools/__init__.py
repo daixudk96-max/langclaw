@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from langclaw.agents.tools.web_fetch import web_fetch
 from langclaw.agents.tools.web_search import make_web_search_tool
+from langclaw.config.schema import secret_value
 
 if TYPE_CHECKING:
     from langclaw.config.schema import LangclawConfig
@@ -40,7 +41,7 @@ def build_web_tools(config: LangclawConfig) -> list[Any]:
         # No key required (e.g. duckduckgo)
         tools.append(make_web_search_tool(backend))
     else:
-        api_key: str = getattr(tools_cfg, key_field, "")
+        api_key = secret_value(getattr(tools_cfg, key_field, ""))
         if api_key:
             tools.append(make_web_search_tool(backend, api_key=api_key))
 

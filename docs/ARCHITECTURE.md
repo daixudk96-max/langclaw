@@ -46,3 +46,5 @@ Understanding where Langclaw sits in the ecosystem helps clarify its architectur
 
 ### Langclaw's Position
 Langclaw aims to be a robust production-ready framework (thanks to the LangChain/LangGraph ecosystem) that is simpler and more explicit in Python than OpenClaw.
+
+Compared with app-style systems such as mini-OpenClaw, Langclaw does not have a major gap in core agent capabilities. The main absorbable product-layer feature it does not bundle today is a concrete frontend workbench: a browser-based chat/debug/editing UI for inspecting sessions, prompts, memories, skills, and tool traces. This is a packaging and developer-experience gap rather than a framework-runtime limitation.

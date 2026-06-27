@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_settings.sources.providers.dotenv import DotEnvSettingsSource
 from pydantic_settings.sources.providers.env import EnvSettingsSource
@@ -106,6 +106,16 @@ def _parse_str_dict(v: object) -> dict[str, str]:
 
 StringDict = Annotated[dict[str, str], BeforeValidator(_parse_str_dict)]
 
+
+SecretValue = SecretStr | str | None
+
+
+def secret_value(value: SecretValue) -> str:
+    if isinstance(value, SecretStr):
+        return value.get_secret_value()
+    return value or ""
+
+
 # ---------------------------------------------------------------------------
 # Langclaw home
 # ---------------------------------------------------------------------------
@@ -120,20 +130,57 @@ _CONFIG_PATH = _LANGCLAW_HOME / "config.json"
 
 class TelegramChannelConfig(BaseModel):
     enabled: bool = False
-    token: str = ""
+    token: SecretStr = SecretStr("")
     allow_from: StringList = Field(default_factory=list)
     user_roles: StringDict = Field(default_factory=dict)
     """Maps Telegram user IDs / @usernames to permission roles.
     Env format: ``123456:admin,@alice:editor``"""
+    streaming_enabled: bool = False
+    """
+    Stream AI responses token-by-token by sending one message then editing
+    it in place as new content arrives.
+
+    .. warning::
+        **Enabling this may degrade reliability.**
+        Telegram enforces a global rate limit of ~20 message edits per minute
+        per bot.  Under moderate load (multiple concurrent users) this limit is
+        easily exceeded, causing ``RetryAfter`` errors and delayed delivery.
+        The 300 ms edit throttle reduces — but does not eliminate — the risk.
+
+        Enable only when the live-typing UX is more important than reliability,
+        and only in low-traffic environments.  Leave disabled (default) to
+        receive the full response as a single message after generation completes.
+
+    Env: ``LANGCLAW__CHANNELS__TELEGRAM__STREAMING_ENABLED=true``
+    """
 
 
 class DiscordChannelConfig(BaseModel):
     enabled: bool = False
-    token: str = ""
+    token: SecretStr = SecretStr("")
     allow_from: StringList = Field(default_factory=list)
     user_roles: StringDict = Field(default_factory=dict)
     """Maps Discord user IDs to permission roles.
     Env format: ``123456:admin,789012:viewer``"""
+    streaming_enabled: bool = False
+    """
+    Stream AI responses token-by-token by sending one message then editing
+    it in place as new content arrives.
+
+    .. warning::
+        **Enabling this may degrade reliability.**
+        Discord allows at most 5 edits per second per message and enforces a
+        global 50 req/s REST limit per bot.  High-frequency edits during
+        generation can trigger ``429 Too Many Requests`` errors, cause visible
+        lag, or result in dropped updates.  The 300 ms throttle mitigates but
+        does not prevent this under concurrent load.
+
+        Enable only when the live-typing UX is more important than reliability,
+        and only in low-traffic environments.  Leave disabled (default) to
+        receive the full response as a single message after generation completes.
+
+    Env: ``LANGCLAW__CHANNELS__DISCORD__STREAMING_ENABLED=true``
+    """
 
 
 class WebSocketChannelConfig(BaseModel):
@@ -144,14 +191,29 @@ class WebSocketChannelConfig(BaseModel):
     user_roles: StringDict = Field(default_factory=dict)
     """Maps WebSocket user IDs to permission roles.
     Env format: ``user1:admin,user2:viewer``"""
+    streaming_enabled: bool = True
+    """
+    Stream AI responses token-by-token, emitting ``{"type": "ai_chunk"}``
+    events as content is generated, followed by ``{"type": "ai_stream_end"}``.
+
+    Unlike Telegram, Slack, and Discord, WebSocket streaming carries no
+    rate-limit risk — chunks are pushed directly over the open socket without
+    any platform API calls.  Clients should accumulate ``ai_chunk`` payloads
+    and render them incrementally.
+
+    Defaults to ``True``.  Set to ``False`` to receive a single
+    ``{"type": "ai"}`` event with the complete response instead.
+
+    Env: ``LANGCLAW__CHANNELS__WEBSOCKET__STREAMING_ENABLED=false``
+    """
 
 
 class SlackChannelConfig(BaseModel):
     enabled: bool = False
-    bot_token: str = ""
+    bot_token: SecretStr = SecretStr("")
     """Slack Bot User OAuth Token (starts with xoxb-).
     Get from https://api.slack.com/apps -> OAuth & Permissions"""
-    app_token: str = ""
+    app_token: SecretStr = SecretStr("")
     """Slack App-Level Token for Socket Mode (starts with xapp-).
     Get from https://api.slack.com/apps -> Basic Information -> App-Level Tokens"""
     allow_from: StringList = Field(default_factory=list)
@@ -164,6 +226,77 @@ class SlackChannelConfig(BaseModel):
     """Emoji name for 'processing' reaction. Default: 'eyes' (👀)."""
     reaction_complete: str = "white_check_mark"
     """Emoji name for 'complete' reaction. Default: 'white_check_mark' (✅)."""
+    streaming_enabled: bool = False
+    """
+    Stream AI responses token-by-token by posting one message then updating
+    it in place via ``chat_update`` as new content arrives.
+
+    .. warning::
+        **Enabling this may degrade reliability.**
+        Slack's ``chat_update`` API is Tier 3 (~50 req/min per app).  Rapid
+        edits during generation can exhaust this quota, causing ``ratelimited``
+        errors and stalled responses.  The 300 ms update throttle reduces —
+        but does not eliminate — the risk, especially with multiple concurrent
+        users sharing the same bot quota.
+
+        Enable only when the live-typing UX is more important than reliability,
+        and only in low-traffic environments.  Leave disabled (default) to
+        receive the full response as a single message after generation completes.
+
+    Env: ``LANGCLAW__CHANNELS__SLACK__STREAMING_ENABLED=true``
+    """
+
+
+class MatrixChannelConfig(BaseModel):
+    enabled: bool = False
+    homeserver_url: str = ""
+    """Full homeserver URL, e.g. ``"https://matrix.org"``."""
+    user_id: str = ""
+    """Bot user ID in fully-qualified form, e.g. ``"@mybot:matrix.org"``."""
+    access_token: SecretStr = SecretStr("")
+    """Long-lived access token obtained via ``/login`` or
+    ``matrix-commander --login``. Starts with ``syt_`` on Synapse."""
+    device_id: str = ""
+    """Device ID associated with ``access_token``. Required by matrix-nio
+    for token-only authentication."""
+    store_path: str = ""
+    """Optional directory for nio's state store. Defaults to
+    ``~/.langclaw/matrix_store`` when left empty."""
+    auto_join_invites: bool = True
+    """Automatically join rooms the bot is invited to. When ``allow_from``
+    is non-empty the inviter must be on the allow-list."""
+    allow_from: StringList = Field(default_factory=list)
+    """Whitelist of Matrix user IDs, e.g. ``@alice:matrix.org,@bob:matrix.org``.
+    Empty list means 'allow everyone'."""
+    user_roles: StringDict = Field(default_factory=dict)
+    """Maps Matrix user IDs to permission roles.
+    Env format: ``@alice:matrix.org:admin,@bob:matrix.org:viewer``"""
+    e2ee_enabled: bool = False
+    """
+    Reserved for future support of end-to-end-encrypted rooms.
+
+    .. warning::
+        Not implemented in this release. Starting the channel with
+        ``e2ee_enabled=True`` raises an error at startup — the bot will
+        not silently fall back to unencrypted mode, which would leak
+        otherwise-encrypted messages on sync. Leave ``False`` for now;
+        set it to opt in once E2EE support ships.
+    """
+
+
+class FeishuChannelConfig(BaseModel):
+    enabled: bool = False
+    app_id: str = ""
+    app_secret: SecretStr = SecretStr("")
+    domain: Literal["feishu", "lark"] = "feishu"
+    connection_mode: Literal["websocket", "webhook"] = "websocket"
+    webhook_host: str = "127.0.0.1"
+    webhook_port: int = 8765
+    webhook_path: str = "/feishu/webhook"
+    verification_token: SecretStr = SecretStr("")
+    encrypt_key: SecretStr = SecretStr("")
+    allow_from: StringList = Field(default_factory=list)
+    user_roles: StringDict = Field(default_factory=dict)
 
 
 class ChannelsConfig(BaseModel):
@@ -171,6 +304,8 @@ class ChannelsConfig(BaseModel):
     discord: DiscordChannelConfig = Field(default_factory=DiscordChannelConfig)
     websocket: WebSocketChannelConfig = Field(default_factory=WebSocketChannelConfig)
     slack: SlackChannelConfig = Field(default_factory=SlackChannelConfig)
+    matrix: MatrixChannelConfig = Field(default_factory=MatrixChannelConfig)
+    feishu: FeishuChannelConfig = Field(default_factory=FeishuChannelConfig)
 
 
 class AgentConfig(BaseModel):
@@ -179,6 +314,10 @@ class AgentConfig(BaseModel):
     rate_limit_rpm: int = 60
     banned_keywords: StringList = Field(default_factory=list)
     extra_skills: StringList = Field(default_factory=list)
+    display_name: str = ""
+    """Human-facing name for the default agent. Injected into the system prompt
+    so the model knows its own name and shown in ``/agent`` listings. Empty
+    string means no display name configured."""
 
     root_dir: str = Field(default_factory=lambda: str(_LANGCLAW_HOME))
 
@@ -216,7 +355,7 @@ class SqliteCheckpointerConfig(BaseModel):
 
 
 class PostgresCheckpointerConfig(BaseModel):
-    dsn: str = ""
+    dsn: SecretStr = SecretStr("")
 
 
 class CheckpointerConfig(BaseModel):
@@ -230,7 +369,7 @@ class AsyncioBusConfig(BaseModel):
 
 
 class RabbitMQBusConfig(BaseModel):
-    amqp_url: str = "amqp://guest:guest@localhost/"
+    amqp_url: SecretStr = SecretStr("amqp://guest:guest@localhost/")
     queue_name: str = "langclaw.inbound"
     exchange_name: str = "langclaw"
 
@@ -253,7 +392,7 @@ class CronSQLiteDataStoreConfig(BaseModel):
 
 
 class CronPostgresDataStoreConfig(BaseModel):
-    dsn: str = ""
+    dsn: SecretStr = SecretStr("")
     """SQLAlchemy async DSN, e.g.
     ``postgresql+asyncpg://user:pass@host/db``."""
 
@@ -272,13 +411,13 @@ class CronDataStoreConfig(BaseModel):
 
 
 class CronAsyncpgEventBrokerConfig(BaseModel):
-    dsn: str = ""
+    dsn: SecretStr = SecretStr("")
     """asyncpg connection DSN, e.g.
     ``postgresql+asyncpg://user:pass@host/db``."""
 
 
 class CronPsycopgEventBrokerConfig(BaseModel):
-    dsn: str = ""
+    dsn: SecretStr = SecretStr("")
     """psycopg3 connection DSN, e.g.
     ``postgresql+psycopg://user:pass@host/db``."""
 
@@ -324,7 +463,7 @@ class GmailConfig(BaseModel):
     client_id: str = ""
     """OAuth 2.0 client ID from the Google Cloud Console."""
 
-    client_secret: str = ""
+    client_secret: SecretStr = SecretStr("")
     """OAuth 2.0 client secret from the Google Cloud Console."""
 
     token_path: str = Field(default_factory=lambda: str(_LANGCLAW_HOME / "gmail_token.json"))
@@ -369,11 +508,11 @@ class ToolsConfig(BaseModel):
     search_backend: Literal["brave", "tavily", "duckduckgo"] = "brave"
     """Search backend to use. One of ``"brave"``, ``"tavily"``, or ``"duckduckgo"``."""
 
-    brave_api_key: str = ""
+    brave_api_key: SecretStr = SecretStr("")
     """Brave Search API key. Required when search_backend = "brave".
     Obtain one at https://api.search.brave.com/app/dashboard"""
 
-    tavily_api_key: str = ""
+    tavily_api_key: SecretStr = SecretStr("")
     """Tavily Search API key. Required when search_backend = "tavily".
     Obtain one at https://app.tavily.com"""
 
@@ -498,9 +637,38 @@ def load_config() -> LangclawConfig:
     return LangclawConfig()
 
 
+def _is_sensitive_config_key(key: str) -> bool:
+    lowered = key.lower()
+    return lowered in {
+        "token",
+        "secret",
+        "api_key",
+        "access_token",
+        "password",
+        "dsn",
+        "amqp_url",
+        "encrypt_key",
+    } or lowered.endswith(("_token", "_secret", "_api_key", "_password"))
+
+
+def _redact_sensitive_config_values(value: Any) -> Any:
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for key, nested in value.items():
+            if _is_sensitive_config_key(key):
+                redacted[key] = ""
+            else:
+                redacted[key] = _redact_sensitive_config_values(nested)
+        return redacted
+    if isinstance(value, list):
+        return [_redact_sensitive_config_values(item) for item in value]
+    return value
+
+
 def save_default_config() -> Path:
     """Write a default config.json to ~/.langclaw/config.json."""
     _CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     default = LangclawConfig()
-    _CONFIG_PATH.write_text(default.model_dump_json(indent=2, exclude_none=False))
+    payload = _redact_sensitive_config_values(default.model_dump(mode="json", exclude_none=False))
+    _CONFIG_PATH.write_text(json.dumps(payload, indent=2))
     return _CONFIG_PATH

@@ -314,16 +314,27 @@ class TestAgentCommand:
     LLM config). This isolates the command routing logic.
     """
 
-    def _setup_manager_with_agents(self, bus, agent_names):
+    def _setup_manager_with_agents(self, bus, agent_names, display_names=None):
         """Helper to create a GatewayManager with mocked named agents.
 
         Creates the manager without named_agent_specs to avoid agent
         construction, then manually populates the agent map and
         registers the /agent command.
+
+        Args:
+            bus:           Mocked message bus.
+            agent_names:   List of agent names to register.
+            display_names: Optional mapping ``{name: display_name}`` for any
+                           agents that should expose a human-facing name in
+                           ``/agent`` output. Missing entries fall back to
+                           empty string (no display name).
         """
         from unittest.mock import MagicMock
 
         config = MagicMock()
+        # GatewayManager reads config.agents.display_name at init — force a
+        # real empty string so the mock auto-attr doesn't leak a MagicMock.
+        config.agents.display_name = ""
         checkpointer = MagicMock()
         checkpointer.get.return_value = MagicMock()
         agent = MagicMock()
@@ -338,10 +349,13 @@ class TestAgentCommand:
             channels=[],
         )
 
+        display_names = display_names or {}
+
         # Manually populate agent registry (bypassing _build_named_agent)
         for name in agent_names:
             mgr._agent_map[name] = MagicMock()
             mgr._agent_descriptions[name] = f"{name} agent"
+            mgr._agent_display_names[name] = display_names.get(name, "")
 
         # Register the /agent command
         mgr._setup_agent_command()
@@ -374,6 +388,37 @@ class TestAgentCommand:
         assert "default" in result
         assert "researcher" in result
         assert "coder" in result
+        # No display names set — rows should not contain trailing "()" artifacts.
+        assert "()" not in result
+
+    async def test_agent_list_shows_display_name(self):
+        """``/agent`` listing shows the human-facing display name when set."""
+        from unittest.mock import MagicMock
+
+        from langclaw.gateway.commands import CommandContext
+
+        bus = MagicMock()
+        mgr = self._setup_manager_with_agents(
+            bus,
+            ["researcher", "coder"],
+            display_names={"researcher": "Ada"},
+        )
+
+        cmd_handler = mgr._command_router._commands.get("agent").handler
+        ctx = CommandContext(
+            channel="test",
+            user_id="user1",
+            context_id="ctx1",
+            chat_id="chat1",
+            args=[],
+        )
+        result = await cmd_handler(ctx)
+
+        # Agent with display_name gets "(Ada)" appended after the routing key.
+        assert "researcher (Ada)" in result
+        # Agent without a display_name stays as bare "coder", not "coder ()".
+        assert "coder" in result
+        assert "coder ()" not in result
 
     async def test_agent_switch_persistent(self):
         """``/agent <name>`` switches session persistently."""
@@ -518,3 +563,134 @@ class TestAgentCommand:
 
         # Session should still be coder
         assert await mgr._sessions.get_active_agent("test", "user1") == "coder"
+
+
+# ---------------------------------------------------------------------------
+# gateway.manager — _handle_message_chunk (regression for issue #26)
+# ---------------------------------------------------------------------------
+
+
+class TestHandleMessageChunk:
+    """Regression coverage for issue #26 — middleware-generated chunks
+    must not leak into ``stream_mode="messages"`` output.
+
+    LangGraph emits message chunks for *every* LLM call in the compiled
+    graph, including nested calls from middleware nodes (e.g.
+    ``SummarizationMiddleware`` invoking its summary model). The handler
+    must filter on the ``langgraph_node`` carried in the chunk metadata
+    and only forward chunks from the user-facing ``"model"`` node.
+    """
+
+    def _make_manager(self):
+        from unittest.mock import MagicMock
+
+        from langclaw.gateway.manager import GatewayManager
+
+        config = MagicMock()
+        checkpointer = MagicMock()
+        checkpointer.get.return_value = MagicMock()
+        agent = MagicMock()
+
+        return GatewayManager(
+            config=config,
+            bus=MagicMock(),
+            checkpointer_backend=checkpointer,
+            agent=agent,
+            channels=[],
+        )
+
+    def _make_msg(self):
+        from langclaw.bus.base import InboundMessage
+
+        return InboundMessage(
+            channel="websocket",
+            user_id="u1",
+            context_id="c1",
+            chat_id="c1",
+            content="hi",
+        )
+
+    class _FakeChannel:
+        def __init__(self):
+            self.sent: list = []
+
+        async def send(self, m):
+            self.sent.append(m)
+
+    async def test_drops_chunk_from_summarization_middleware_node(self):
+        """The exact failure mode from issue #26: a HumanMessage-shaped
+        summary leaking through is one symptom, but the underlying cause
+        is the summarization model's *AIMessageChunk* tokens streaming
+        out of ``SummarizationMiddleware.before_model``."""
+        from langchain_core.messages import AIMessageChunk
+
+        mgr = self._make_manager()
+        msg = self._make_msg()
+        channel = self._FakeChannel()
+
+        chunk = (
+            AIMessageChunk(content="Here is a summary of the conversation"),
+            {"langgraph_node": "SummarizationMiddleware.before_model"},
+        )
+        await mgr._handle_message_chunk(chunk, msg, channel, set())
+
+        assert channel.sent == []
+
+    async def test_forwards_chunk_from_model_node(self):
+        """Real model output must still stream end-to-end."""
+        from langchain_core.messages import AIMessageChunk
+
+        mgr = self._make_manager()
+        msg = self._make_msg()
+        channel = self._FakeChannel()
+        streaming_contexts: set[str] = set()
+
+        chunk = (
+            AIMessageChunk(content="Hello, "),
+            {"langgraph_node": "model"},
+        )
+        await mgr._handle_message_chunk(chunk, msg, channel, streaming_contexts)
+
+        assert len(channel.sent) == 1
+        out = channel.sent[0]
+        assert out.content == "Hello, "
+        assert out.streaming is True
+        assert out.is_final is False
+        assert out.type == "ai"
+        # Marks the context as actively streaming so the updates path
+        # knows to skip the duplicate full AIMessage.
+        assert "c1" in streaming_contexts
+
+    async def test_drops_chunk_with_missing_metadata(self):
+        """Defensive: if LangGraph ever yields a tuple without
+        ``langgraph_node``, fail closed (drop) rather than leak."""
+        from langchain_core.messages import AIMessageChunk
+
+        mgr = self._make_manager()
+        msg = self._make_msg()
+        channel = self._FakeChannel()
+
+        chunk = (AIMessageChunk(content="orphan chunk"), {})
+        await mgr._handle_message_chunk(chunk, msg, channel, set())
+        assert channel.sent == []
+
+        chunk = (AIMessageChunk(content="orphan chunk"), None)
+        await mgr._handle_message_chunk(chunk, msg, channel, set())
+        assert channel.sent == []
+
+    async def test_drops_non_aimessagechunk_from_model_node(self):
+        """Existing behavior preserved: non-AIMessageChunk objects (e.g.
+        tool messages routed via the messages stream) are dropped even
+        when they originate from the ``"model"`` node."""
+        from langchain_core.messages import HumanMessage
+
+        mgr = self._make_manager()
+        msg = self._make_msg()
+        channel = self._FakeChannel()
+
+        chunk = (
+            HumanMessage(content="not an AI chunk"),
+            {"langgraph_node": "model"},
+        )
+        await mgr._handle_message_chunk(chunk, msg, channel, set())
+        assert channel.sent == []

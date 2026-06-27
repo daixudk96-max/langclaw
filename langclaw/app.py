@@ -31,6 +31,7 @@ from langclaw.config.schema import (
     PermissionsConfig,
     RoleConfig,
     load_config,
+    secret_value,
 )
 from langclaw.context import LangclawContext
 from langclaw.gateway.commands import CommandContext
@@ -390,6 +391,7 @@ class Langclaw:
         name: str,
         *,
         description: str,
+        display_name: str | None = None,
         system_prompt: str | None = None,
         tools: list[Any] | None = None,
         model: str | BaseChatModel | None = None,
@@ -412,6 +414,11 @@ class Langclaw:
             name:          Unique identifier used with ``/switch <name>``.
                            Must not be ``"default"`` (reserved sentinel).
             description:   Short description shown by ``/switch`` with no args.
+            display_name:  Optional human-facing name for this agent. Injected
+                           into the system prompt so the model knows its own
+                           name, and shown alongside the routing key in
+                           ``/agent`` listings.  When ``None``, only the
+                           registered ``name`` is used.
             system_prompt: System prompt for this agent.  When ``None``, the
                            base ``AGENTS.md`` prompt is used unchanged.
             tools:         Explicit list of tool instances for this agent.
@@ -441,6 +448,7 @@ class Langclaw:
         self._named_agents[name] = {
             "name": name,
             "description": description,
+            "display_name": display_name,
             "system_prompt": system_prompt,
             "tools": tools,
             "model": model,
@@ -548,6 +556,7 @@ class Langclaw:
             bus=bus,
             model=model,
             context_schema=context_schema,
+            display_name=effective_config.agents.display_name or None,
         )
 
     # ------------------------------------------------------------------
@@ -600,7 +609,7 @@ class Langclaw:
 
         bus = self._bus = make_message_bus(
             bus_cfg.backend,
-            rabbitmq_url=bus_cfg.rabbitmq.amqp_url,
+            rabbitmq_url=secret_value(bus_cfg.rabbitmq.amqp_url),
             rabbitmq_queue=bus_cfg.rabbitmq.queue_name,
             kafka_servers=bus_cfg.kafka.bootstrap_servers,
             kafka_topic=bus_cfg.kafka.topic,
@@ -609,7 +618,7 @@ class Langclaw:
         checkpointer_backend = make_checkpointer_backend(
             cp_cfg.backend,
             db_path=cp_cfg.sqlite.db_path,
-            dsn=cp_cfg.postgres.dsn,
+            dsn=secret_value(cp_cfg.postgres.dsn),
         )
 
         channels = self._build_all_channels()
@@ -755,6 +764,31 @@ class Langclaw:
             except ImportError:
                 logger.warning(
                     "Slack enabled but slack-bolt not installed. Run: uv add 'langclaw[slack]'"
+                )
+
+        if ch_cfg.matrix.enabled:
+            try:
+                from langclaw.gateway.matrix import MatrixChannel
+
+                channels.append(MatrixChannel(ch_cfg.matrix))
+            except ImportError:
+                logger.warning(
+                    "Matrix enabled but matrix-nio not installed. Run: uv add 'langclaw[matrix]'"
+                )
+
+        if ch_cfg.feishu.enabled:
+            try:
+                from langclaw.gateway.feishu import FeishuChannel, check_feishu_requirements
+
+                if check_feishu_requirements(ch_cfg.feishu.connection_mode):
+                    channels.append(FeishuChannel(ch_cfg.feishu))
+                else:
+                    logger.warning(
+                        "Feishu enabled but lark-oapi not installed. Run: uv add 'langclaw[feishu]'"
+                    )
+            except ImportError:
+                logger.warning(
+                    "Feishu enabled but lark-oapi not installed. Run: uv add 'langclaw[feishu]'"
                 )
 
         channels.extend(self._extra_channels)

@@ -17,7 +17,7 @@ from typing import Annotated
 import typer
 
 from langclaw.cli.utils import install_deps
-from langclaw.config.schema import load_config
+from langclaw.config.schema import load_config, secret_value
 
 app = typer.Typer(
     name="langclaw",
@@ -129,7 +129,7 @@ async def _agent_async(
     backend = make_checkpointer_backend(
         cp_cfg.backend,
         db_path=cp_cfg.sqlite.db_path,
-        dsn=cp_cfg.postgres.dsn,
+        dsn=secret_value(cp_cfg.postgres.dsn),
     )
 
     async with backend:
@@ -324,6 +324,41 @@ async def _cron_list_async() -> None:
         typer.echo(
             f"{job.id:<36}  {job.name[:24]:<24}  {job.schedule:<20}  {job.channel}/{job.user_id}"
         )
+
+
+@cron_app.command("view")
+def cron_view(
+    job_id: Annotated[str, typer.Argument(help="Job ID to show.")],
+) -> None:
+    """Show full details for a job (message, schedule, agent, context)."""
+    asyncio.run(_cron_view_async(job_id))
+
+
+async def _cron_view_async(job_id: str) -> None:
+    from langclaw.cron import list_jobs_from_store
+    from langclaw.cron.utils import format_cron_job_detail
+
+    cfg = load_config()
+    if cfg.cron.data_store.backend == "memory":
+        typer.echo(
+            "Cannot view jobs: the 'memory' data store does not persist jobs. "
+            "Set cron.data_store.backend to 'sqlite' (default) or 'postgres'.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    try:
+        jobs = await list_jobs_from_store(cfg.cron)
+    except Exception as exc:
+        typer.echo(f"Error reading data store: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    job = next((j for j in jobs if j.id == job_id), None)
+    if job is None:
+        typer.echo(f"Job {job_id} not found.", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(format_cron_job_detail(job))
 
 
 @cron_app.command("remove")

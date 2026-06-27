@@ -14,12 +14,12 @@ from langchain_core.tools import BaseTool, tool
 from loguru import logger
 
 from langclaw.context import LangclawContext
-from langclaw.cron.utils import make_cron_context_id
+from langclaw.cron.utils import format_cron_job_detail, make_cron_context_id
 
 if TYPE_CHECKING:
     from langclaw.cron.scheduler import CronManager
 
-CRON_TOOL_DOC = """Schedule, list, or remove recurring jobs.
+CRON_TOOL_DOC = """Schedule, list, view, or remove recurring jobs.
 
     HOW IT WORKS
     ------------
@@ -45,25 +45,27 @@ CRON_TOOL_DOC = """Schedule, list, or remove recurring jobs.
     -------
     ``add``    — create a new scheduled job.
     ``list``   — list all active jobs.
+    ``view``   — view the full scheduled message for a job by ID.
     ``remove`` — delete a job by ID.
 
     Args:
-        action:        One of ``'add'``, ``'list'``, or ``'remove'``.
+        action:        One of ``'add'``, ``'list'``, ``'view'``, or ``'remove'``.
         type:          One of ``'reminder'``, ``'task'``.
                        Required for ``add``.
                        Type ``'reminder'`` includes recent conversation history.
                        Type ``'task'`` includes only the scheduled message.
         message:       Prompt injected into the agent at fire time.
                        Required for ``add``.
-                       Write task instructions only.
+                       Write message as clear, complete, and self-contained instructions.
                        Do NOT include schedule/timezone or recipient/user info;
                        scheduling + routing are already handled by cron context.
+                       Do NOT rely on prior conversation context - agents may not have access to it.
         every_seconds: Repeat interval in seconds (e.g. 3600 = every hour).
                        Mutually exclusive with ``cron_expr``.
         cron_expr:     Standard 5-field cron expression in {timezone}.
                        e.g. ``'0 9 * * *'`` = daily at 09:00 {timezone}.
                        Mutually exclusive with ``every_seconds``.
-        job_id:        ID of the job to remove. Required for ``remove``.
+        job_id:        ID of the job to view or remove. Required for ``view`` and ``remove``.
 
     Examples
     --------
@@ -95,6 +97,10 @@ CRON_TOOL_DOC = """Schedule, list, or remove recurring jobs.
 
         cron(action='list')
 
+    View a job's full message::
+
+        cron(action='view', job_id='<job_id>')
+
     Remove a job::
 
         cron(action='remove', job_id='<job_id>')
@@ -104,8 +110,8 @@ CRON_TOOL_DOC = """Schedule, list, or remove recurring jobs.
 def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool:
     """Return a ``cron`` tool wired to *cron_manager*.
 
-    The returned tool is a single LangChain ``BaseTool`` that exposes three
-    actions — ``add``, ``list``, and ``remove`` — so the LLM can manage
+    The returned tool is a single LangChain ``BaseTool`` that exposes four
+    actions — ``add``, ``list``, ``view``, and ``remove`` — so the LLM can manage
     scheduled jobs through natural language.
 
     Channel context (channel name, user_id, context_id) is read from
@@ -126,7 +132,7 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
     """
 
     async def cron(
-        action: Literal["add", "list", "remove"],
+        action: Literal["add", "list", "remove", "view"],
         type: Literal["reminder", "task"] | None = None,
         message: str | None = None,
         every_seconds: int | None = None,
@@ -202,6 +208,21 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
                 lines.append(f"  • [{j.id}] {j.name!r} — {j.schedule}")
             return "\n".join(lines)
 
+        # ── view ─────────────────────────────────────────────────────────
+        if action == "view":
+            if not job_id:
+                return "Error: job_id is required for view."
+
+            jobs = await cron_manager.list_jobs(
+                channel=channel or None,
+                user_id=user_id or None,
+            )
+            job = next((j for j in jobs if j.id == job_id), None)
+            if job is None:
+                return f"Job {job_id} not found."
+
+            return format_cron_job_detail(job)
+
         # ── remove ─────────────────────────────────────────────────────────
         if action == "remove":
             if not job_id:
@@ -215,7 +236,7 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
                 return f"Job {job_id} removed."
             return f"Job {job_id} not found."
 
-        return f"Unknown action: {action!r}. Use 'add', 'list', or 'remove'."
+        return f"Unknown action: {action!r}. Use 'add', 'list', 'view', or 'remove'."
 
     # Set the docstring before passing to tool() so the LLM-visible schema
     # includes the active timezone. tool() reads __doc__ at call time.
