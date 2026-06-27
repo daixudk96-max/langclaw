@@ -364,7 +364,11 @@ class FeishuChannel(BaseChannel):
         try:
             for chunk in split_message(msg.content, max_len=self._MAX_MESSAGE_LEN):
                 msg_type, payload = self._build_outbound_payload(chunk)
-                request_body = self._build_create_message_body(msg_type=msg_type, content=payload)
+                request_body = self._build_create_message_body(
+                    msg_type=msg_type,
+                    content=payload,
+                    receive_id=msg.chat_id,
+                )
                 request = self._build_create_message_request(
                     chat_id=msg.chat_id,
                     request_body=request_body,
@@ -674,27 +678,38 @@ class FeishuChannel(BaseChannel):
         return "text", json.dumps({"text": content}, ensure_ascii=False)
 
     @staticmethod
-    def _build_create_message_body(*, msg_type: str, content: str) -> Any:
+    def _build_create_message_body(
+        *,
+        msg_type: str,
+        content: str,
+        receive_id: str,
+    ) -> Any:
         if CreateMessageRequestBody is not None:
-            return (
+            builder = (
                 CreateMessageRequestBody.builder()
                 .msg_type(msg_type)
                 .content(content)
                 .uuid(str(uuid.uuid4()))
-                .build()
             )
-        return SimpleNamespace(msg_type=msg_type, content=content, uuid=str(uuid.uuid4()))
+            receive_id_builder = getattr(builder, "receive_id", None)
+            if callable(receive_id_builder):
+                builder = receive_id_builder(receive_id)
+            return builder.build()
+        return SimpleNamespace(
+            msg_type=msg_type,
+            content=content,
+            receive_id=receive_id,
+            uuid=str(uuid.uuid4()),
+        )
 
     @staticmethod
     def _build_create_message_request(*, chat_id: str, request_body: Any) -> Any:
         if CreateMessageRequest is not None:
-            return (
-                CreateMessageRequest.builder()
-                .receive_id_type("chat_id")
-                .receive_id(chat_id)
-                .request_body(request_body)
-                .build()
-            )
+            builder = CreateMessageRequest.builder().receive_id_type("chat_id")
+            receive_id_builder = getattr(builder, "receive_id", None)
+            if callable(receive_id_builder):
+                builder = receive_id_builder(chat_id)
+            return builder.request_body(request_body).build()
         return SimpleNamespace(
             receive_id_type="chat_id",
             receive_id=chat_id,
