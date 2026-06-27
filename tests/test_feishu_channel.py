@@ -176,9 +176,7 @@ class TestFeishuSending:
         config = FeishuChannelConfig(enabled=True, app_id="cli_test", app_secret="secret")
         channel = FeishuChannel(config)
         channel._client = SimpleNamespace(
-            im=SimpleNamespace(
-                v1=SimpleNamespace(message=SimpleNamespace(create=_create))
-            )
+            im=SimpleNamespace(v1=SimpleNamespace(message=SimpleNamespace(create=_create)))
         )
 
         await channel.send_ai_message(
@@ -510,9 +508,9 @@ class TestFeishuTransport:
             headers={"Content-Type": "application/json"},
             content_length=None,
             read=AsyncMock(
-                return_value=json.dumps(
-                    {"type": "url_verification", "challenge": "abc123"}
-                ).encode("utf-8")
+                return_value=json.dumps({"type": "url_verification", "challenge": "abc123"}).encode(
+                    "utf-8"
+                )
             ),
         )
 
@@ -768,9 +766,11 @@ class TestFeishuTransport:
         timestamp = str(int(time.time()) - 3600)
         nonce = "n1"
         body_str = body.decode("utf-8")
-        signature = __import__("hashlib").sha256(
-            f"{timestamp}{nonce}{channel._encrypt_key}{body_str}".encode()
-        ).hexdigest()
+        signature = (
+            __import__("hashlib")
+            .sha256(f"{timestamp}{nonce}{channel._encrypt_key}{body_str}".encode())
+            .hexdigest()
+        )
         headers = {
             "x-lark-request-timestamp": timestamp,
             "x-lark-request-nonce": nonce,

@@ -219,8 +219,7 @@ def _render_post_element(
         if image_key and image_key not in image_keys:
             image_keys.append(image_key)
         alt = (
-            str(element.get("text", "") or "").strip()
-            or str(element.get("alt", "") or "").strip()
+            str(element.get("text", "") or "").strip() or str(element.get("alt", "") or "").strip()
         )
         return f"[Image: {alt}]" if alt else "[Image]"
     if tag in {"media", "file", "audio", "video"}:
@@ -454,9 +453,7 @@ class FeishuChannel(BaseChannel):
         if not FEISHU_WEBHOOK_AVAILABLE or web is None:
             raise RuntimeError("webhook mode unavailable")
         if not self._verification_token and not self._encrypt_key:
-            raise RuntimeError(
-                "webhook mode requires a verification token or encrypt key"
-            )
+            raise RuntimeError("webhook mode requires a verification token or encrypt key")
 
         domain = FEISHU_DOMAIN if self._domain_name != "lark" else LARK_DOMAIN
         self._client = self._build_lark_client(domain)
@@ -507,9 +504,8 @@ class FeishuChannel(BaseChannel):
         if self._verification_token:
             header = payload.get("header") or {}
             incoming_token = str(header.get("token") or payload.get("token") or "")
-            if (
-                not incoming_token
-                or not hmac.compare_digest(incoming_token, self._verification_token)
+            if not incoming_token or not hmac.compare_digest(
+                incoming_token, self._verification_token
             ):
                 return web.Response(status=401, text="Invalid verification token")
 
@@ -602,9 +598,7 @@ class FeishuChannel(BaseChannel):
         sender = getattr(event, "sender", None)
         sender_id = getattr(sender, "sender_id", None)
         user_id = str(
-            getattr(sender_id, "open_id", "")
-            or getattr(sender_id, "user_id", "")
-            or ""
+            getattr(sender_id, "open_id", "") or getattr(sender_id, "user_id", "") or ""
         ).strip()
 
         if not message or not user_id:
